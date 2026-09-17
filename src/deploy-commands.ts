@@ -1,17 +1,30 @@
 import { REST, Routes, ApplicationCommandType } from 'discord.js';
 import { config } from 'dotenv';
+import { COMMAND_NAMES } from './commands.js';
 
 config();
 
 const commands = [
   {
-    name: 'Translate to English',
+    name: COMMAND_NAMES.TRANSLATE_EN,
     type: ApplicationCommandType.Message,
     integration_types: [0, 1],
     contexts: [0, 1, 2],
   },
   {
-    name: 'Translate to Japanese',
+    name: COMMAND_NAMES.TRANSLATE_JA,
+    type: ApplicationCommandType.Message,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+  },
+  {
+    name: COMMAND_NAMES.SUMMARIZE,
+    type: ApplicationCommandType.Message,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+  },
+  {
+    name: COMMAND_NAMES.DRAFT_REPLY,
     type: ApplicationCommandType.Message,
     integration_types: [0, 1],
     contexts: [0, 1, 2],
@@ -38,6 +51,7 @@ const rest = new REST({ version: '10' }).setToken(token);
 
     console.log('✅ Successfully registered application commands!');
     console.log('📱 Commands are available as User-Install context menus');
+    console.log(Object.values(COMMAND_NAMES).map((name) => `  - ${name}`).join('\n'));
   } catch (error) {
     console.error('❌ Error deploying commands:', error);
   }
