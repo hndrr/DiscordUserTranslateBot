@@ -21,7 +21,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@cursor/sdk": "^0.1.0",
+    "@cursor/sdk": "^1.0.31",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.7"
   },
