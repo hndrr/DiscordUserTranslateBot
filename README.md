@@ -16,8 +16,10 @@ Discord上でメッセージを右クリックして簡単に翻訳できるUser
 - 🌐 **メッセージコンテキストメニュー翻訳**: 
   - 「Translate to English」- 英語に翻訳
   - 「Translate to Japanese」- 日本語に翻訳
-- 🤖 **Cursor SDK統合**: Composer 2.5モデルを使用した高品質な翻訳
-- 💬 **プライベート応答**: 翻訳結果は自分だけに表示されます
+- 📝 **要約**: 「要約」で選択したメッセージを短く日本語要約。スレッドや返信チェーンがある場合は、前後の文脈（直近十数件／約4,000文字まで）も踏まえます
+- 💬 **返信ドラフト**: 「返信ドラフト」で返信案を生成。日本語と英語の対訳つき
+- 🤖 **Cursor SDK統合**: Composer 2.5モデルを使用した高品質な翻訳・要約・下書き
+- 🔒 **プライベート応答**: 結果は自分だけに表示されます（ephemeral）
 
 ## 必要要件
 
@@ -136,8 +138,11 @@ chmod +x run-forever.sh
 
 1. Discord Developer PortalのInstallationタブからインストールリンクを取得
 2. 自分のDiscordアカウントにBotをインストール
-3. 任意のメッセージを右クリックして「Apps」→「Translate to English」または「Translate to Japanese」を選択
-4. 翻訳結果が表示されることを確認
+3. 任意のメッセージを右クリックして「Apps」からコマンドを選択
+   - 「Translate to English」/「Translate to Japanese」: 翻訳
+   - 「要約」: 日本語の短い要約
+   - 「返信ドラフト」: 日本語・英語の返信案
+4. 結果が自分だけに表示されることを確認
 
 ### 5. ログの確認・再起動
 
@@ -206,18 +211,21 @@ chmod +x run-forever.sh
 1. Discord Developer PortalのInstallationタブからインストールリンクを取得
 2. 自分のDiscordアカウントにBotをインストール
 3. 任意のメッセージを右クリック
-4. 「Apps」→「Translate to English」または「Translate to Japanese」を選択
-5. 翻訳結果が自分だけに表示されます
+4. 「Apps」から「Translate to English」「Translate to Japanese」「要約」「返信ドラフト」のいずれかを選択
+5. 結果が自分だけに表示されます
 
 ---
 
 ## 使い方
 
-インストール後は、どちらの実行環境でも以下の手順で翻訳機能を利用できます：
+インストール後は、どちらの実行環境でも以下の手順で利用できます：
 
 1. Discord上の任意のメッセージを右クリック
-2. 「Apps」→「Translate to English」または「Translate to Japanese」を選択
-3. 翻訳結果が自分だけに表示されます（他のユーザーには見えません）
+2. 「Apps」から使いたいメニューを選択
+   - **Translate to English** / **Translate to Japanese** — 翻訳
+   - **要約** — 選択メッセージの短い日本語要約（スレッド／返信なら前後の文脈も参照）
+   - **返信ドラフト** — そのメッセージへの返信案。日本語と英語の対訳を表示
+3. 結果は自分だけに表示されます（他のユーザーには見えません）
 
 ## プロジェクト構造
 
@@ -225,8 +233,10 @@ chmod +x run-forever.sh
 .
 ├── src/
 │   ├── index.ts           # Botのメインファイル
+│   ├── commands.ts        # コンテキストメニュー名
 │   ├── deploy-commands.ts # コマンド登録スクリプト
-│   └── translator.ts      # Cursor SDK翻訳機能
+│   ├── message-content.ts # 本文抽出・スレッド／返信の文脈収集
+│   └── translator.ts      # Cursor SDK（翻訳・要約・返信ドラフト）
 ├── package.json           # 依存関係とスクリプト
 ├── tsconfig.json          # TypeScript設定
 ├── .env.example           # 環境変数テンプレート
@@ -237,7 +247,7 @@ chmod +x run-forever.sh
 ## 技術スタック
 
 - **Discord.js v14**: Discord API インタラクション
-- **Cursor SDK**: AI翻訳エンジン（Composer 2.5モデル）
+- **Cursor SDK**: AI翻訳・要約・返信ドラフト（Composer 2.5モデル）
 - **TypeScript**: 型安全な開発
 - **tsx**: TypeScript実行環境
 
