@@ -104,17 +104,21 @@ async function handleSummarize(interaction: MessageContextMenuCommandInteraction
 function formatDraftReply(japanese: string, english: string): string {
   const header = '**💬 返信ドラフト**\n\n';
   const jaHeader = '**日本語**\n';
-  const enHeader = '\n\n**English**\n';
+  let ja = japanese.trim();
+  let en = english.trim();
+  const enHeader = en ? '\n\n**English**\n' : '';
   const overhead = header.length + jaHeader.length + enHeader.length;
   const budget = DISCORD_LIMIT - overhead;
 
-  let ja = japanese.trim();
-  let en = english.trim();
   if (ja.length + en.length > budget) {
-    const half = Math.max(1, Math.floor(budget / 2));
-    if (ja.length > half) ja = ja.slice(0, half - 1) + '…';
-    const enBudget = budget - ja.length;
-    if (en.length > enBudget) en = en.slice(0, Math.max(1, enBudget) - 1) + '…';
+    if (!en) {
+      if (ja.length > budget) ja = ja.slice(0, Math.max(1, budget) - 1) + '…';
+    } else {
+      const half = Math.max(1, Math.floor(budget / 2));
+      if (ja.length > half) ja = ja.slice(0, half - 1) + '…';
+      const enBudget = budget - ja.length;
+      if (en.length > enBudget) en = en.slice(0, Math.max(1, enBudget) - 1) + '…';
+    }
   }
 
   return `${header}${jaHeader}${ja}${enHeader}${en}`;

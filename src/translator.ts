@@ -31,6 +31,8 @@ async function runAgentPrompt(prompt: string, errorLabel: string): Promise<strin
       apiKey,
       model: { id: modelId },
       local: { cwd },
+      // Empty allowlist: Discord-controlled prompts cannot invoke shell/read/write.
+      tools: [],
     });
 
     if (result.status !== 'finished') {
@@ -108,7 +110,7 @@ export function parseBilingualDraft(raw: string): BilingualDraft {
     return { japanese: labeled[1].trim(), english: labeled[2].trim() };
   }
 
-  return { japanese: raw.trim(), english: raw.trim() };
+  return { japanese: raw.trim(), english: '' };
 }
 
 export async function draftReply(input: {
