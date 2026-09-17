@@ -16,7 +16,7 @@ Discord上でメッセージを右クリックして簡単に翻訳できるUser
 - 🌐 **メッセージコンテキストメニュー翻訳**: 
   - 「Translate to English」- 英語に翻訳
   - 「Translate to Japanese」- 日本語に翻訳
-- 🤖 **Cursor SDK統合**: Composer-2モデルを使用した高品質な翻訳
+- 🤖 **Cursor SDK統合**: Composer 2.5モデルを使用した高品質な翻訳
 - 💬 **プライベート応答**: 翻訳結果は自分だけに表示されます
 
 ## 必要要件
@@ -237,7 +237,7 @@ chmod +x run-forever.sh
 ## 技術スタック
 
 - **Discord.js v14**: Discord API インタラクション
-- **Cursor SDK**: AI翻訳エンジン（Composer-2モデル）
+- **Cursor SDK**: AI翻訳エンジン（Composer 2.5モデル）
 - **TypeScript**: 型安全な開発
 - **tsx**: TypeScript実行環境
 
