@@ -32,7 +32,7 @@ ${source}`;
   try {
     const result = await Agent.prompt(prompt, {
       apiKey,
-      model: { id: process.env.CURSOR_MODEL || 'composer-2' },
+      model: { id: process.env.CURSOR_MODEL || 'composer-2.5' },
       local: { cwd },
     });
 
