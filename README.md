@@ -70,8 +70,9 @@ Grok Botのアシスタント（例：「Discord翻訳」）を利用してい�
 2. 「New Application」をクリックして新しいアプリケーションを作成
 3. 「Bot」タブに移動し、Botを作成
 4. 「TOKEN」をコピー（後で使用します）
-5. 「OAuth2」→「General」タブで「APPLICATION ID」をコピー
-6. 「Installation」タブで以下を設定:
+5. 同じ「Bot」タブの **Privileged Gateway Intents** で **Message Content Intent** を ON にする（「類似を探す」で周辺履歴を読むために必要。User Install のみでは読めないことが多い）
+6. 「OAuth2」→「General」タブで「APPLICATION ID」をコピー
+7. 「Installation」タブで以下を設定:
    - **Installation Contexts**: `User Install` にチェック
    - **Install Link**: `Discord Provided Link` を選択
    - **Default Install Settings**: 
@@ -229,7 +230,7 @@ chmod +x run-forever.sh
    - **Translate to English** / **Translate to Japanese** — 翻訳
    - **要約** — 選択メッセージの短い日本語要約（スレッド／返信なら前後の文脈も参照）
    - **返信ドラフト** — そのメッセージへの返信案。日本語と英語の対訳を表示
-   - **類似を探す** — チャンネル／スレッドの周辺メッセージ（最大約100件）から同じ意図の投稿を探し、作者・短い抜粋・ジャンプリンクを ephemeral で一覧表示
+   - **類似を探す** — チャンネル／スレッドの周辺メッセージ（最大約100件）から同じ意図の投稿を探し、作者・短い抜粋・ジャンプリンクを ephemeral で一覧表示（**Message Content Intent** とサーバー招待があると安定）
    - **指示して実行** — まずモーダルが開き、自由な指示（例: 似た質問探して / 丁寧に言い換えて / 論点だけ3つ）を入力。送信後に対象メッセージと文脈を踏まえて実行し、結果を ephemeral で返す（2000文字まで）
 3. 結果は自分だけに表示されます（他のユーザーには見えません）
 
@@ -276,6 +277,18 @@ chmod +x run-forever.sh
 - `CURSOR_API_KEY`が正しく設定されているか確認
 - Cursor APIの利用可能クレジットがあるか確認
 - コンソールログでエラーメッセージを確認
+
+### 「類似を探す」で履歴が読めない / 候補が空
+
+User Install だけではチャンネル履歴を REST / Gateway から取得できないことが多くあります。
+
+- Discord Developer Portal → Bot → **Message Content Intent** を ON
+- 可能なら Bot を対象サーバーにも入れる（Guild メンバーシップがあると履歴取得が改善しやすい）
+- 単一メッセージの処理なら「要約」や「指示して実行」を使う
+
+### 「指示して実行」で Missing Access
+
+モーダル表示時にメッセージ文脈をキャッシュするため、再取得は不要です。古いデプロイで `Missing Access` が出る場合は最新版に更新し、メニューから開き直してください。
 
 ## セキュリティに関する注意
 
