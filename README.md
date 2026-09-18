@@ -71,6 +71,7 @@ Grok Botのアシスタント（例：「Discord翻訳」）を利用してい�
 3. 「Bot」タブに移動し、Botを作成
 4. 「TOKEN」をコピー（後で使用します）
 5. 同じ「Bot」タブの **Privileged Gateway Intents** で **Message Content Intent** を ON にする（「類似を探す」で周辺履歴を読むために必要。User Install のみでは読めないことが多い）
+   - 有効化前に Bot を起動すると `Used disallowed intents` で落ちます。一時的に `DISCORD_MESSAGE_CONTENT_INTENT=0` でスキップ可能
 6. 「OAuth2」→「General」タブで「APPLICATION ID」をコピー
 7. 「Installation」タブで以下を設定:
    - **Installation Contexts**: `User Install` にチェック
