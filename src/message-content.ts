@@ -1,1 +1,1 @@
-PLACEHOLDER
+file:///workspace/DiscordUserTranslateBot/src/message-content.ts
