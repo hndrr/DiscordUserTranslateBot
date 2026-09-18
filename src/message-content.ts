@@ -14,6 +14,7 @@ export type ContextLine = {
   content: string;
   createdTimestamp: number;
   isTarget: boolean;
+  channelId: string;
 };
 
 export function extractMessageText(message: Message): string {
@@ -94,6 +95,7 @@ function toLine(message: Message, targetId: string): ContextLine | null {
     content,
     createdTimestamp: message.createdTimestamp,
     isTarget: message.id === targetId,
+    channelId: message.channelId,
   };
 }
 
@@ -289,6 +291,7 @@ export async function collectNearbyMessages(message: Message): Promise<{
     }
   } catch (error) {
     console.warn('Could not fetch thread messages for similar search:', error);
+    fetchFailed = true;
   }
 
   const sorted = [...seen.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);

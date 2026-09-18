@@ -236,7 +236,7 @@ ${catalog}`;
   const raw = await runAgentPrompt(prompt, 'Find similar');
   const validIds = new Set(candidates.map((c) => c.id));
   const targetId = input.lines.find((l) => l.isTarget)?.id || '';
-  const ids = parseSimilarIds(raw, validIds, targetId);
+  const ids = parseSimilarIds(raw, validIds, targetId).slice(0, 8);
   const byId = new Map(candidates.map((c) => [c.id, c]));
 
   return ids
@@ -247,7 +247,7 @@ ${catalog}`;
         id,
         author: line.author,
         snippet: shortSnippet(line.content),
-        url: messageJumpUrl(input.guildId, input.channelId, id),
+        url: messageJumpUrl(input.guildId, line.channelId || input.channelId, id),
       } satisfies SimilarMatch;
     })
     .filter((m): m is SimilarMatch => m !== null);
