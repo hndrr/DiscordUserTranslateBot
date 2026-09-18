@@ -23,6 +23,7 @@ import {
 import {
   draftReply,
   findSimilarMessages,
+  findSimilarWithinMessage,
   runInstruction,
   summarizeMessage,
   translateMessage,
@@ -281,11 +282,23 @@ async function handleFindSimilar(interaction: MessageContextMenuCommandInteracti
 
     const candidates = lines.filter((l) => !l.isTarget);
     if (historyUnavailable || candidates.length === 0) {
-      await interaction.editReply(
-        '❌ User Install ではこのチャンネルの履歴を読めないことが多いです。\n' +
-          'Discord Developer Portal で **Message Content Intent** を ON にし、Bot をサーバーに入れると改善することがあります。\n' +
-          '単一メッセージなら「要約」や「指示して実行」を使ってください。',
-      );
+      // User-Install often cannot fetch channel history — fall back like 「指示して実行」
+      // on the single selected message (+ reply-chain context when available).
+      const { targetText: ctxTarget, contextText, authorName: ctxAuthor } =
+        await collectMessageContext(message);
+      const fallbackTarget = ctxTarget || targetText;
+      const fallbackAuthor = ctxAuthor || authorName;
+      const result = await findSimilarWithinMessage({
+        targetText: fallbackTarget,
+        contextText:
+          contextText || `[対象] ${fallbackAuthor}: ${fallbackTarget}`,
+        authorName: fallbackAuthor,
+      });
+      const note =
+        '\n\n_チャンネル履歴が読めないためメッセージ内の関連整理です。サーバーにBotを入れると投稿横断の類似検索ができます。_';
+      await interaction.editReply({
+        content: clipForDiscord(`**🔍 類似を探す**\n\n${result}${note}`),
+      });
       return;
     }
 

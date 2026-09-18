@@ -253,6 +253,41 @@ ${catalog}`;
     .filter((m): m is SimilarMatch => m !== null);
 }
 
+export async function findSimilarWithinMessage(input: {
+  targetText: string;
+  contextText?: string;
+  authorName?: string;
+}): Promise<string> {
+  const target = clipSource(input.targetText);
+  if (!target) return '（対象メッセージにテキストがありません）';
+
+  const context = clipSource(
+    input.contextText || `[対象] ${input.authorName || 'unknown'}: ${target}`,
+    6000,
+  );
+  const author = input.authorName || 'unknown';
+
+  const prompt = `You help a Japanese-speaking Discord user analyze ONE selected message (plus any reply-chain context already provided).
+Channel history is NOT available — you cannot search other posts in the channel.
+
+Task: From the selected message (and reply context if present), extract and organize items that share a similar stance, argument, theme, or related information. Group related points. Be concrete.
+
+Rules:
+- Output ONLY the organized Japanese result (no meta commentary, no "sure")
+- Prefer short bullet lists or numbered sections
+- Do not invent facts not present in the text
+- Briefly note that cross-channel search was not possible (one short line at the end is OK if natural; otherwise the UI will note it)
+- Keep @mentions, emoji, and URLs when relevant
+- Be concise
+
+Selected author: ${author}
+
+Conversation:
+${context}`;
+
+  return runAgentPrompt(prompt, 'Find similar within message');
+}
+
 export async function runInstruction(input: {
   instruction: string;
   targetText: string;
