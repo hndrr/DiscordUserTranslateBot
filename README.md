@@ -2,13 +2,9 @@
 
 Discord上でメッセージを右クリックして簡単に翻訳できるUser-Install対応のBotです。Cursor SDKを使用してAI翻訳を実行します。
 
-## ⚠️ 重要な注意事項
+## 前提
 
-**各自で専用のDiscord ApplicationとCursor API Keyを作成すること。**
-
-- 他人のBotをインストールしない
-- インストールリンクを共有しない
-- トークン・APIキーを共有しない
+このBotを動かすには、**自分の Discord Application** と **Cursor API Key** が必要です。トークンと API キーは `.env` に置き、コミット・共有しないでください。
 
 ## 機能
 
@@ -75,8 +71,8 @@ Grok Botのアシスタント（例：「Discord翻訳」）を利用してい�
 6. 「OAuth2」→「General」タブで「APPLICATION ID」をコピー
 7. 「Installation」タブで以下を設定:
    - **Installation Contexts**: `User Install` にチェック
-   - **Install Link**: `Discord Provided Link` を選択
-   - **Default Install Settings**: 
+   - **Install Link**: `Discord Provided Link` を選択（自分への初回インストール用）
+   - **Default Install Settings**:
      - Scopes: `applications.commands`
      - Permissions: 不要（User Installの場合）
 
@@ -222,6 +218,17 @@ chmod +x run-forever.sh
 
 ---
 
+## 任意（個人利用でアプリを非公開にしたい場合）
+
+初回セットアップでは不要です。自分用にアプリを非公開にしたいときだけ実施してください。
+
+1. Installation → **Install Link** を **None（設定しない）** にする
+2. そのあと Bot タブの **Public Bot** を OFF にする
+
+Install Link が残ったままだと非公開にできず、Portal でエラーになります（private apps cannot have a default authorization / install link。verified apps は公開必須）。既に User Install 済みなら、非公開後もそのまま使えます（トークン再発行・アプリ削除・認可取り消しがない限り）。
+
+---
+
 ## 使い方
 
 インストール後は、どちらの実行環境でも以下の手順で利用できます：
@@ -292,9 +299,8 @@ User Install だけではチャンネル履歴を REST / Gateway から取得で
 
 ## セキュリティに関する注意
 
-- ⚠️ `.env`ファイルは絶対にGitにコミットしないでください
-- ⚠️ トークンやAPIキーは他人と共有しないでください
-- ⚠️ Botのインストールリンクを公開しないでください
+- `.env`ファイルは Git にコミットしないでください
+- トークンや API キーは共有しないでください。漏れたら Discord Developer Portal / Cursor で再発行してください
 
 ## ライセンス
 
