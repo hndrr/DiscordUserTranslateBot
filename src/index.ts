@@ -77,16 +77,19 @@ function takeInstructionModalContext(customId: string): InstructionModalContext 
   return ctx;
 }
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.DirectMessages,
-    // Privileged: enable "Message Content Intent" in Discord Developer Portal (Bot → Privileged Gateway Intents).
-    // Helps 「類似を探す」 fetch nearby history when the bot is also in the guild; User-Install alone often cannot.
-    GatewayIntentBits.MessageContent,
-  ],
-});
+const intents = [
+  GatewayIntentBits.Guilds,
+  GatewayIntentBits.GuildMessages,
+  GatewayIntentBits.DirectMessages,
+];
+// Privileged: enable "Message Content Intent" in Discord Developer Portal (Bot → Privileged Gateway Intents).
+// Helps 「類似を探す」 fetch nearby history when the bot is also in the guild; User-Install alone often cannot.
+// Set DISCORD_MESSAGE_CONTENT_INTENT=0 to skip until the Portal toggle is ON (otherwise Discord closes with "Used disallowed intents").
+if (process.env.DISCORD_MESSAGE_CONTENT_INTENT !== '0') {
+  intents.push(GatewayIntentBits.MessageContent);
+}
+
+const client = new Client({ intents });
 
 client.once('ready', () => {
   console.log(`✅ Bot is ready! Logged in as ${client.user?.tag}`);
