@@ -248,6 +248,8 @@ export async function collectNearbyMessages(message: Message): Promise<{
   lines: ContextLine[];
   usedNearby: boolean;
   fetchFailed: boolean;
+  /** True when history could not be read beyond the target (User-Install / missing intents). */
+  historyUnavailable: boolean;
 }> {
   const targetText = extractMessageText(message);
   const authorName = displayAuthor(message);
@@ -260,21 +262,77 @@ export async function collectNearbyMessages(message: Message): Promise<{
 
   await walkReplyChain(message, message.id, seen);
 
-  try {
-    const channel = message.channel;
-    if (channel && 'messages' in channel) {
+  const channel = message.channel;
+  if (channel && 'messages' in channel) {
+    // Merge anything already in the channel cache (gateway may have partial history).
+    try {
+      for (const cached of channel.messages.cache.values()) {
+        const line = toLine(cached, message.id);
+        if (line) seen.set(line.id, line);
+      }
+    } catch {
+      // ignore cache walk issues
+    }
+
+    let aroundSize = 0;
+    let beforeSize = 0;
+    let afterSize = 0;
+
+    try {
       const fetched = await channel.messages.fetch({
         limit: MAX_NEARBY_MESSAGES,
         around: message.id,
       });
+      aroundSize = fetched.size;
       for (const nearby of fetched.values()) {
         const line = toLine(nearby, message.id);
         if (line) seen.set(line.id, line);
       }
       if (fetched.size > 1) usedNearby = true;
+    } catch (error) {
+      console.warn('Could not fetch nearby messages for similar search (around):', error);
+      fetchFailed = true;
     }
-  } catch (error) {
-    console.warn('Could not fetch nearby messages for similar search:', error);
+
+    // User-Install / missing Message Content often returns only the target (or empty) without throwing.
+    if (aroundSize <= 1) {
+      try {
+        const before = await channel.messages.fetch({
+          limit: 50,
+          before: message.id,
+        });
+        beforeSize = before.size;
+        for (const nearby of before.values()) {
+          const line = toLine(nearby, message.id);
+          if (line) seen.set(line.id, line);
+        }
+        if (before.size > 0) usedNearby = true;
+      } catch (error) {
+        console.warn('Could not fetch nearby messages for similar search (before):', error);
+        fetchFailed = true;
+      }
+
+      try {
+        const after = await channel.messages.fetch({
+          limit: 50,
+          after: message.id,
+        });
+        afterSize = after.size;
+        for (const nearby of after.values()) {
+          const line = toLine(nearby, message.id);
+          if (line) seen.set(line.id, line);
+        }
+        if (after.size > 0) usedNearby = true;
+      } catch (error) {
+        console.warn('Could not fetch nearby messages for similar search (after):', error);
+        fetchFailed = true;
+      }
+
+      console.warn(
+        `collectNearbyMessages: around=${aroundSize} before=${beforeSize} after=${afterSize} seen=${seen.size} (target=${message.id})`,
+      );
+    }
+  } else {
     fetchFailed = true;
   }
 
@@ -296,12 +354,20 @@ export async function collectNearbyMessages(message: Message): Promise<{
 
   const sorted = [...seen.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
   const lines = trimLinesToCharBudget(sorted, message.id, MAX_NEARBY_CHARS);
+  const candidatesBeyondTarget = lines.filter((l) => !l.isTarget).length;
+  const historyUnavailable = candidatesBeyondTarget === 0;
+
+  if (historyUnavailable && !fetchFailed) {
+    // Silent empty history under User-Install — treat like a fetch failure for UX.
+    fetchFailed = true;
+  }
 
   return {
     targetText,
     authorName,
     lines,
     usedNearby: usedNearby || lines.length > 1,
-    fetchFailed: fetchFailed && lines.length <= 1,
+    fetchFailed: fetchFailed && historyUnavailable,
+    historyUnavailable,
   };
 }

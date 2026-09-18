@@ -32,13 +32,64 @@ config();
 
 const DISCORD_LIMIT = 2000;
 
-const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.DirectMessages,
-  ],
-});
+const MODAL_CONTEXT_TTL_MS = 15 * 60 * 1000;
+
+type InstructionModalContext = {
+  targetText: string;
+  contextText: string;
+  authorName: string;
+  guildId: string | null;
+  channelId: string;
+  messageId: string;
+  userId: string;
+  expiresAt: number;
+};
+
+/** Prefetched message context for instruction modals (User-Install often cannot REST-fetch channels). */
+const instructionModalContext = new Map<string, InstructionModalContext>();
+
+function pruneExpiredModalContexts(now = Date.now()): void {
+  for (const [key, value] of instructionModalContext) {
+    if (value.expiresAt <= now) instructionModalContext.delete(key);
+  }
+}
+
+function storeInstructionModalContext(
+  customId: string,
+  ctx: Omit<InstructionModalContext, 'expiresAt'>,
+): void {
+  pruneExpiredModalContexts();
+  instructionModalContext.set(customId, {
+    ...ctx,
+    expiresAt: Date.now() + MODAL_CONTEXT_TTL_MS,
+  });
+}
+
+function takeInstructionModalContext(customId: string): InstructionModalContext | null {
+  pruneExpiredModalContexts();
+  const ctx = instructionModalContext.get(customId);
+  if (!ctx) return null;
+  if (ctx.expiresAt <= Date.now()) {
+    instructionModalContext.delete(customId);
+    return null;
+  }
+  instructionModalContext.delete(customId);
+  return ctx;
+}
+
+const intents = [
+  GatewayIntentBits.Guilds,
+  GatewayIntentBits.GuildMessages,
+  GatewayIntentBits.DirectMessages,
+];
+// Privileged: enable "Message Content Intent" in Discord Developer Portal (Bot → Privileged Gateway Intents).
+// Helps 「類似を探す」 fetch nearby history when the bot is also in the guild; User-Install alone often cannot.
+// Set DISCORD_MESSAGE_CONTENT_INTENT=0 to skip until the Portal toggle is ON (otherwise Discord closes with "Used disallowed intents").
+if (process.env.DISCORD_MESSAGE_CONTENT_INTENT !== '0') {
+  intents.push(GatewayIntentBits.MessageContent);
+}
+
+const client = new Client({ intents });
 
 client.once('ready', () => {
   console.log(`✅ Bot is ready! Logged in as ${client.user?.tag}`);
@@ -218,7 +269,7 @@ async function handleFindSimilar(interaction: MessageContextMenuCommandInteracti
 
   try {
     const message = interaction.targetMessage;
-    const { targetText, authorName, lines, usedNearby, fetchFailed } =
+    const { targetText, authorName, lines, historyUnavailable } =
       await collectNearbyMessages(message);
 
     if (!targetText) {
@@ -228,17 +279,12 @@ async function handleFindSimilar(interaction: MessageContextMenuCommandInteracti
       return;
     }
 
-    if (fetchFailed && !usedNearby) {
-      await interaction.editReply(
-        '❌ 周辺メッセージを取得できませんでした。権限やチャンネル種別を確認してください。',
-      );
-      return;
-    }
-
     const candidates = lines.filter((l) => !l.isTarget);
-    if (candidates.length === 0) {
+    if (historyUnavailable || candidates.length === 0) {
       await interaction.editReply(
-        'ℹ️ 比較できる周辺メッセージがありませんでした。',
+        '❌ User Install ではこのチャンネルの履歴を読めないことが多いです。\n' +
+          'Discord Developer Portal で **Message Content Intent** を ON にし、Bot をサーバーに入れると改善することがあります。\n' +
+          '単一メッセージなら「要約」や「指示して実行」を使ってください。',
       );
       return;
     }
@@ -280,6 +326,18 @@ async function handleRunInstructionMenu(
       message.id,
       interaction.user.id,
     );
+
+    // Prefetch before showModal — User-Install often cannot REST-fetch the channel later.
+    const { targetText, contextText, authorName } = await collectMessageContext(message);
+    storeInstructionModalContext(customId, {
+      targetText,
+      contextText,
+      authorName,
+      guildId: message.guildId,
+      channelId: message.channelId,
+      messageId: message.id,
+      userId: interaction.user.id,
+    });
 
     const modal = new ModalBuilder()
       .setCustomId(customId)
@@ -337,17 +395,41 @@ async function handleInstructionModal(interaction: ModalSubmitInteraction) {
       return;
     }
 
-    const channel = await client.channels.fetch(parsed.channelId);
-    if (!channel || !('messages' in channel)) {
-      await interaction.editReply('❌ チャンネルを取得できませんでした。');
-      return;
+    // Prefer prefetched context (User-Install often cannot client.channels.fetch).
+    let targetText = '';
+    let contextText = '';
+    let authorName = '';
+
+    const cached = takeInstructionModalContext(interaction.customId);
+    if (cached) {
+      targetText = cached.targetText;
+      contextText = cached.contextText;
+      authorName = cached.authorName;
+    } else {
+      // Optional fallback: interaction.channel if it exposes messages (no client.channels.fetch).
+      try {
+        const channel = interaction.channel;
+        if (channel && 'messages' in channel && channel.messages) {
+          const message = await channel.messages.fetch(parsed.messageId);
+          const collected = await collectMessageContext(message);
+          targetText = collected.targetText || extractMessageText(message);
+          contextText = collected.contextText;
+          authorName = collected.authorName || displayAuthor(message);
+        }
+      } catch (error) {
+        console.warn('Instruction modal optional channel fetch failed:', error);
+      }
+
+      if (!targetText) {
+        await interaction.editReply(
+          '❌ User Install ではチャンネルを再取得できないことがあります。\n' +
+            '右クリックメニューから「指示して実行」をもう一度開き直してください。',
+        );
+        return;
+      }
     }
 
-    const message = await channel.messages.fetch(parsed.messageId);
-    const { targetText, contextText, authorName } = await collectMessageContext(message);
-
-    // Fallback if context collection yields empty but raw extract might still work
-    const text = targetText || extractMessageText(message);
+    const text = targetText;
     if (!text) {
       await interaction.editReply(
         '❌ このメッセージには実行できるテキストがありません。（本文・埋め込み・添付が空です）',
@@ -358,8 +440,8 @@ async function handleInstructionModal(interaction: ModalSubmitInteraction) {
     const result = await runInstruction({
       instruction,
       targetText: text,
-      contextText: contextText || `[対象] ${authorName || displayAuthor(message)}: ${text}`,
-      authorName: authorName || displayAuthor(message),
+      contextText: contextText || `[対象] ${authorName || 'unknown'}: ${text}`,
+      authorName: authorName || 'unknown',
     });
 
     await interaction.editReply({
