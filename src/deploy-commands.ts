@@ -29,6 +29,18 @@ const commands = [
     integration_types: [0, 1],
     contexts: [0, 1, 2],
   },
+  {
+    name: COMMAND_NAMES.FIND_SIMILAR,
+    type: ApplicationCommandType.Message,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+  },
+  {
+    name: COMMAND_NAMES.RUN_INSTRUCTION,
+    type: ApplicationCommandType.Message,
+    integration_types: [0, 1],
+    contexts: [0, 1, 2],
+  },
 ];
 
 const token = process.env.DISCORD_TOKEN;

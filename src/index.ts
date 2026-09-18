@@ -1,8 +1,32 @@
-import { Client, GatewayIntentBits, MessageContextMenuCommandInteraction } from 'discord.js';
+import {
+  ActionRowBuilder,
+  Client,
+  GatewayIntentBits,
+  MessageContextMenuCommandInteraction,
+  ModalBuilder,
+  ModalSubmitInteraction,
+  TextInputBuilder,
+  TextInputStyle,
+} from 'discord.js';
 import { config } from 'dotenv';
-import { COMMAND_NAMES } from './commands.js';
-import { collectMessageContext } from './message-content.js';
-import { draftReply, summarizeMessage, translateMessage } from './translator.js';
+import {
+  COMMAND_NAMES,
+  INSTRUCTION_INPUT_ID,
+  INSTRUCTION_MODAL_PREFIX,
+} from './commands.js';
+import {
+  collectMessageContext,
+  collectNearbyMessages,
+  extractMessageText,
+  displayAuthor,
+} from './message-content.js';
+import {
+  draftReply,
+  findSimilarMessages,
+  runInstruction,
+  summarizeMessage,
+  translateMessage,
+} from './translator.js';
 
 config();
 
@@ -22,6 +46,13 @@ client.once('ready', () => {
 });
 
 client.on('interactionCreate', async (interaction) => {
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId.startsWith(INSTRUCTION_MODAL_PREFIX)) {
+      await handleInstructionModal(interaction);
+    }
+    return;
+  }
+
   if (!interaction.isMessageContextMenuCommand()) return;
 
   const contextInteraction = interaction as MessageContextMenuCommandInteraction;
@@ -39,6 +70,12 @@ client.on('interactionCreate', async (interaction) => {
     case COMMAND_NAMES.DRAFT_REPLY:
       await handleDraftReply(contextInteraction);
       break;
+    case COMMAND_NAMES.FIND_SIMILAR:
+      await handleFindSimilar(contextInteraction);
+      break;
+    case COMMAND_NAMES.RUN_INSTRUCTION:
+      await handleRunInstructionMenu(contextInteraction);
+      break;
   }
 });
 
@@ -47,9 +84,36 @@ function clipForDiscord(text: string, max = DISCORD_LIMIT): string {
   return text.slice(0, max - 1) + '…';
 }
 
+/** customId: instr:{channelId}:{messageId}:{userId} — must stay ≤ 100 chars. */
+function buildInstructionModalCustomId(
+  channelId: string,
+  messageId: string,
+  userId: string,
+): string {
+  const id = `${INSTRUCTION_MODAL_PREFIX}${channelId}:${messageId}:${userId}`;
+  if (id.length > 100) {
+    throw new Error(`Modal customId too long (${id.length} > 100)`);
+  }
+  return id;
+}
+
+function parseInstructionModalCustomId(customId: string): {
+  channelId: string;
+  messageId: string;
+  userId: string;
+} | null {
+  if (!customId.startsWith(INSTRUCTION_MODAL_PREFIX)) return null;
+  const rest = customId.slice(INSTRUCTION_MODAL_PREFIX.length);
+  const parts = rest.split(':');
+  if (parts.length !== 3) return null;
+  const [channelId, messageId, userId] = parts;
+  if (!channelId || !messageId || !userId) return null;
+  return { channelId, messageId, userId };
+}
+
 async function handleTranslation(
   interaction: MessageContextMenuCommandInteraction,
-  targetLanguage: string
+  targetLanguage: string,
 ) {
   await interaction.deferReply({ ephemeral: true });
 
@@ -146,6 +210,164 @@ async function handleDraftReply(interaction: MessageContextMenuCommandInteractio
   } catch (error) {
     console.error('Draft reply error:', error);
     await interaction.editReply('❌ 返信ドラフトの生成中にエラーが発生しました。');
+  }
+}
+
+async function handleFindSimilar(interaction: MessageContextMenuCommandInteraction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const message = interaction.targetMessage;
+    const { targetText, authorName, lines, usedNearby, fetchFailed } =
+      await collectNearbyMessages(message);
+
+    if (!targetText) {
+      await interaction.editReply(
+        '❌ このメッセージには類似検索できるテキストがありません。（本文・埋め込み・添付が空です）',
+      );
+      return;
+    }
+
+    if (fetchFailed && !usedNearby) {
+      await interaction.editReply(
+        '❌ 周辺メッセージを取得できませんでした。権限やチャンネル種別を確認してください。',
+      );
+      return;
+    }
+
+    const candidates = lines.filter((l) => !l.isTarget);
+    if (candidates.length === 0) {
+      await interaction.editReply(
+        'ℹ️ 比較できる周辺メッセージがありませんでした。',
+      );
+      return;
+    }
+
+    const matches = await findSimilarMessages({
+      targetText,
+      authorName,
+      lines,
+      guildId: message.guildId,
+      channelId: message.channelId,
+    });
+
+    if (matches.length === 0) {
+      await interaction.editReply(
+        'ℹ️ 同じ意図のメッセージは見つかりませんでした。',
+      );
+      return;
+    }
+
+    const items = matches.map((m, i) => {
+      return `${i + 1}. **${m.author}**: ${m.snippet}\n   → ${m.url}`;
+    });
+    const body = `**🔍 類似を探す**（${matches.length}件）\n\n${items.join('\n\n')}`;
+    await interaction.editReply({ content: clipForDiscord(body) });
+  } catch (error) {
+    console.error('Find similar error:', error);
+    await interaction.editReply('❌ 類似メッセージの検索中にエラーが発生しました。');
+  }
+}
+
+/** First response MUST be showModal (no defer). */
+async function handleRunInstructionMenu(
+  interaction: MessageContextMenuCommandInteraction,
+) {
+  try {
+    const message = interaction.targetMessage;
+    const customId = buildInstructionModalCustomId(
+      message.channelId,
+      message.id,
+      interaction.user.id,
+    );
+
+    const modal = new ModalBuilder()
+      .setCustomId(customId)
+      .setTitle('指示して実行');
+
+    const input = new TextInputBuilder()
+      .setCustomId(INSTRUCTION_INPUT_ID)
+      .setLabel('指示内容')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('例: 似た質問探して / 丁寧に言い換えて / 論点だけ3つ')
+      .setRequired(true)
+      .setMinLength(1)
+      .setMaxLength(1000);
+
+    modal.addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(input),
+    );
+
+    await interaction.showModal(modal);
+  } catch (error) {
+    console.error('Show instruction modal error:', error);
+    // showModal is the first response — if it failed we may still reply once
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({
+        content: '❌ モーダルの表示に失敗しました。',
+        ephemeral: true,
+      });
+    } else {
+      await interaction.reply({
+        content: '❌ モーダルの表示に失敗しました。',
+        ephemeral: true,
+      });
+    }
+  }
+}
+
+async function handleInstructionModal(interaction: ModalSubmitInteraction) {
+  await interaction.deferReply({ ephemeral: true });
+
+  try {
+    const parsed = parseInstructionModalCustomId(interaction.customId);
+    if (!parsed) {
+      await interaction.editReply('❌ モーダル情報が不正です。');
+      return;
+    }
+
+    if (interaction.user.id !== parsed.userId) {
+      await interaction.editReply('❌ このモーダルはあなた専用です。');
+      return;
+    }
+
+    const instruction = interaction.fields.getTextInputValue(INSTRUCTION_INPUT_ID).trim();
+    if (!instruction) {
+      await interaction.editReply('❌ 指示が空です。');
+      return;
+    }
+
+    const channel = await client.channels.fetch(parsed.channelId);
+    if (!channel || !('messages' in channel)) {
+      await interaction.editReply('❌ チャンネルを取得できませんでした。');
+      return;
+    }
+
+    const message = await channel.messages.fetch(parsed.messageId);
+    const { targetText, contextText, authorName } = await collectMessageContext(message);
+
+    // Fallback if context collection yields empty but raw extract might still work
+    const text = targetText || extractMessageText(message);
+    if (!text) {
+      await interaction.editReply(
+        '❌ このメッセージには実行できるテキストがありません。（本文・埋め込み・添付が空です）',
+      );
+      return;
+    }
+
+    const result = await runInstruction({
+      instruction,
+      targetText: text,
+      contextText: contextText || `[対象] ${authorName || displayAuthor(message)}: ${text}`,
+      authorName: authorName || displayAuthor(message),
+    });
+
+    await interaction.editReply({
+      content: clipForDiscord(`**⚡ 指示して実行**\n\n${result}`),
+    });
+  } catch (error) {
+    console.error('Instruction modal error:', error);
+    await interaction.editReply('❌ 指示の実行中にエラーが発生しました。');
   }
 }
 
