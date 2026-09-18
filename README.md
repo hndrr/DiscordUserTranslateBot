@@ -2,13 +2,21 @@
 
 Discord上でメッセージを右クリックして簡単に翻訳できるUser-Install対応のBotです。Cursor SDKを使用してAI翻訳を実行します。
 
-## ⚠️ 重要な注意事項
+## 自分用のアプリで動かす
 
-**各自で専用のDiscord ApplicationとCursor API Keyを作成すること。**
+このBotを動かすには、**自分の Discord Application** と **Cursor API Key** が必要です。
 
-- 他人のBotをインストールしない
-- インストールリンクを共有しない
-- トークン・APIキーを共有しない
+個人利用ならアプリは非公開にできます。手順は次のとおりです。
+
+1. 自分にインストールする（Installation の Discord Provided Link、または OAuth2 URL Generator）
+2. Installation → **Install Link** を **None（設定しない）** にする
+3. そのあとアプリを非公開にする（Bot タブの **Public Bot** を OFF）
+
+Install Link が残ったままだと非公開にできません。エラー例: private apps cannot have a default authorization / install link（verified apps は公開必須）。
+
+既に User Install 済みで動かしている Bot は、非公開後もそのまま使えます（トークン再発行・アプリ削除・認可取り消しがない限り）。
+
+トークンと API キーは `.env` に置き、コミット・共有しないでください。
 
 ## 機能
 
@@ -75,10 +83,12 @@ Grok Botのアシスタント（例：「Discord翻訳」）を利用してい�
 6. 「OAuth2」→「General」タブで「APPLICATION ID」をコピー
 7. 「Installation」タブで以下を設定:
    - **Installation Contexts**: `User Install` にチェック
-   - **Install Link**: `Discord Provided Link` を選択
-   - **Default Install Settings**: 
+   - **Install Link**: 自分に入れるときは `Discord Provided Link`。入れたあと個人利用で非公開にするなら **None（設定しない）** に戻す
+   - リンクなしで入れる場合は **OAuth2 → URL Generator** で scopes `applications.commands`、User Install の URL を発行し、自分だけ開く
+   - **Default Install Settings**:
      - Scopes: `applications.commands`
      - Permissions: 不要（User Installの場合）
+8. 個人利用で非公開にする場合: **先に Install Link を None（設定しない）** にしてから、Bot タブの **Public Bot** を OFF。逆にするとエラーになります（上記「自分用のアプリで動かす」を参照）
 
 ### 2. Cursor API Keyの取得
 
@@ -140,15 +150,16 @@ chmod +x run-forever.sh
 
 ### 4. Bot の動作確認
 
-1. Discord Developer PortalのInstallationタブからインストールリンクを取得
-2. 自分のDiscordアカウントにBotをインストール
-3. 任意のメッセージを右クリックして「Apps」からコマンドを選択
+1. 自分のDiscordアカウントにBotを入れる（未インストールの場合）
+   - Installation タブの Discord Provided Link、または OAuth2 → URL Generator（`applications.commands` + User Install）
+   - 入れたあと個人利用で非公開にするなら、Install Link を None（設定しない）にしてから Public Bot を OFF
+2. 任意のメッセージを右クリックして「Apps」からコマンドを選択
    - 「Translate to English」/「Translate to Japanese」: 翻訳
    - 「要約」: 日本語の短い要約
    - 「返信ドラフト」: 日本語・英語の返信案
    - 「類似を探す」: 同じ意図の周辺メッセージ一覧
    - 「指示して実行」: モーダルに指示を入れて実行
-4. 結果が自分だけに表示されることを確認
+3. 結果が自分だけに表示されることを確認
 
 ### 5. ログの確認・再起動
 
@@ -214,11 +225,12 @@ chmod +x run-forever.sh
 
 ### 5. Bot の動作確認
 
-1. Discord Developer PortalのInstallationタブからインストールリンクを取得
-2. 自分のDiscordアカウントにBotをインストール
-3. 任意のメッセージを右クリック
-4. 「Apps」から「Translate to English」「Translate to Japanese」「要約」「返信ドラフト」「類似を探す」「指示して実行」のいずれかを選択
-5. 結果が自分だけに表示されます
+1. 自分のDiscordアカウントにBotを入れる（未インストールの場合）
+   - Installation タブの Discord Provided Link、または OAuth2 → URL Generator（`applications.commands` + User Install）
+   - 入れたあと個人利用で非公開にするなら、Install Link を None（設定しない）にしてから Public Bot を OFF
+2. 任意のメッセージを右クリック
+3. 「Apps」から「Translate to English」「Translate to Japanese」「要約」「返信ドラフト」「類似を探す」「指示して実行」のいずれかを選択
+4. 結果が自分だけに表示されます
 
 ---
 
@@ -292,9 +304,9 @@ User Install だけではチャンネル履歴を REST / Gateway から取得で
 
 ## セキュリティに関する注意
 
-- ⚠️ `.env`ファイルは絶対にGitにコミットしないでください
-- ⚠️ トークンやAPIキーは他人と共有しないでください
-- ⚠️ Botのインストールリンクを公開しないでください
+- `.env`ファイルは Git にコミットしないでください
+- トークンや API キーは共有しないでください。漏れたら Discord Developer Portal / Cursor で再発行してください
+- 個人利用ではアプリを非公開にし、Install Link は None（設定しない）にします（先に Install Link を外してから非公開）
 
 ## ライセンス
 
