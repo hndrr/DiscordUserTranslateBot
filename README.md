@@ -146,7 +146,20 @@ chmod +x run-forever.sh
    - 「指示して実行」: モーダルに指示を入れて実行
 4. 結果が自分だけに表示されることを確認
 
-### 5. ログの確認・再起動
+### 5. 再起動後の起動確認（ensure-running.sh）
+
+ホストVMが再起動するとBotプロセスは落ち、`node_modules` が無いこともあります。`ensure-running.sh` は未起動のときだけ起動する冪等なヘルパーです。何度呼んでも安全です。
+
+```bash
+bash ensure-running.sh
+```
+
+- すでに `tsx src/index.ts` が動いていれば `ALREADY_RUNNING` で終了します
+- `.env` が無ければ `MISSING_ENV` で失敗します
+- `node_modules` が無ければ `npm install` してから `run-forever.sh` をバックグラウンド起動し、ログは `logs/bot.out` に追記します
+- Discord コマンド登録（`npm run deploy`）の代わりにはなりません。`run-forever.sh` はコールドスタート時に自動で deploy します
+
+### 6. ログの確認・再起動
 
 Botが正常に動作しているか確認したい場合や、再起動したい場合は、アシスタントに以下のようにお願いしてください：
 
@@ -256,6 +269,7 @@ Install Link が残ったままだと非公開にできず、Portal でエラー
 ├── tsconfig.json          # TypeScript設定
 ├── .env.example           # 環境変数テンプレート
 ├── run-forever.sh         # 永続実行スクリプト
+├── ensure-running.sh      # 未起動なら起動する冪等ヘルパー（VM再起動後向け）
 └── README.md              # このファイル
 ```
 
