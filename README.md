@@ -105,6 +105,8 @@ https://github.com/hndrr/DiscordUserTranslateBot をあなたのコンピュー�
 3. `npm install` で依存関係をインストール
 4. 環境変数（`.env`）の設定を要求
 
+**Node.js >= 22.13.0 が必須です**（`package.json` の `engines` および `@cursor/sdk` が使う `node:sqlite`）。Node 20 では動きません。
+
 ### 2. 環境変数を安全に提供
 
 アシスタントから環境変数の入力を求められたら、以下の情報を**安全な方法**で提供してください：
@@ -146,7 +148,24 @@ chmod +x run-forever.sh
    - 「指示して実行」: モーダルに指示を入れて実行
 4. 結果が自分だけに表示されることを確認
 
-### 5. ログの確認・再起動
+### 5. 再起動後の起動確認（ensure-running.sh）
+
+ホストVMが再起動するとBotプロセスは落ち、`node_modules` が無いこともあります。Grok Bot の「Update Computer」後は既定の Node 20 イメージに戻ることがあり、apt で入れた Node 22 も消えます。`ensure-running.sh` は未起動のときだけ起動する冪等なヘルパーです。何度呼んでも安全です。
+
+```bash
+bash ensure-running.sh
+```
+
+- Node.js >= 22.13.0 が必須です。足りなければ公式 nodejs.org の Linux tarball（ピン留め 22.23.3）を入れます（nodesource / apt は使いません）。root またはパスワード不要の `sudo -n` なら `/usr/local`、それ以外は `~/.local`（パスワード待ちの sudo では失敗させません）
+- このリポジトリの Bot だけを対象にします。稼働中プロセスの Node（`/proc/<pid>/exe`）が条件を満たせば `ALREADY_RUNNING`、古ければ止めて入れ直して再起動します
+- 同時実行は `logs/ensure-running.lock` で直列化します
+- `.env` が無ければ `MISSING_ENV` で失敗します
+- `node_modules` が無ければ `npm install` してから `run-forever.sh` をバックグラウンド起動し、ログは `logs/bot.out` に追記します
+- 起動に失敗した場合は今回起動した wrapper とこのリポジトリの子プロセスを止めて `START_FAILED` にします（リトライで積み上がらないようにするため）
+- Discord コマンド登録（`npm run deploy`）の代わりにはなりません。`run-forever.sh` はコールドスタート時に自動で deploy します
+- Node 20 のまま翻訳を動かす回避策はありません（`@cursor/sdk` は `node:sqlite` が必要です）
+
+### 6. ログの確認・再起動
 
 Botが正常に動作しているか確認したい場合や、再起動したい場合は、アシスタントに以下のようにお願いしてください：
 
@@ -256,6 +275,7 @@ Install Link が残ったままだと非公開にできず、Portal でエラー
 ├── tsconfig.json          # TypeScript設定
 ├── .env.example           # 環境変数テンプレート
 ├── run-forever.sh         # 永続実行スクリプト
+├── ensure-running.sh      # 未起動なら起動する冪等ヘルパー（VM再起動後向け）
 └── README.md              # このファイル
 ```
 
