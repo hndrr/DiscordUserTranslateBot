@@ -105,7 +105,7 @@ https://github.com/hndrr/DiscordUserTranslateBot をあなたのコンピュー�
 3. `npm install` で依存関係をインストール
 4. 環境変数（`.env`）の設定を要求
 
-Node.js >= 22.13.0 が推奨です（`@cursor/sdk` の engines）。Node 20 など `node:sqlite` が無い環境でも、翻訳は Jsonl ローカルストアで動くようにしています。運用では引き続き Node 22+ を目指してください。
+**Node.js >= 22.13.0 が必須です**（`package.json` の `engines` および `@cursor/sdk` が使う `node:sqlite`）。Node 20 では動きません。
 
 ### 2. 環境変数を安全に提供
 

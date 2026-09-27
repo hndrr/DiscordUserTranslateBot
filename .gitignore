@@ -1,7 +1,6 @@
 node_modules/
 dist/
 .env
-.cursor-agent-store/
 .DS_Store
 *.log
 npm-debug.log*

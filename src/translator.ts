@@ -1,4 +1,4 @@
-import { Agent, JsonlLocalAgentStore } from '@cursor/sdk';
+import { Agent } from '@cursor/sdk';
 import { config } from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,7 +14,6 @@ if (!apiKey) {
 }
 
 const cwd = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const localStore = new JsonlLocalAgentStore(path.join(cwd, '.cursor-agent-store'));
 const modelId = process.env.CURSOR_MODEL || 'composer-2.5';
 
 export type BilingualDraft = {
@@ -40,10 +39,7 @@ async function runAgentPrompt(prompt: string, errorLabel: string): Promise<strin
     const result = await Agent.prompt(prompt, {
       apiKey,
       model: { id: modelId },
-      local: {
-        cwd,
-        store: localStore,
-      },
+      local: { cwd },
       // Empty allowlist: Discord-controlled prompts cannot invoke shell/read/write.
       tools: [],
     });
