@@ -150,16 +150,19 @@ chmod +x run-forever.sh
 
 ### 5. 再起動後の起動確認（ensure-running.sh）
 
-ホストVMが再起動するとBotプロセスは落ち、`node_modules` が無いこともあります。`ensure-running.sh` は未起動のときだけ起動する冪等なヘルパーです。何度呼んでも安全です。
+ホストVMが再起動するとBotプロセスは落ち、`node_modules` が無いこともあります。Grok Bot の「Update Computer」後は既定の Node 20 イメージに戻ることがあり、apt で入れた Node 22 も消えます。`ensure-running.sh` は未起動のときだけ起動する冪等なヘルパーです。何度呼んでも安全です。
 
 ```bash
 bash ensure-running.sh
 ```
 
-- すでに `tsx src/index.ts` が動いていれば `ALREADY_RUNNING` で終了します
+- Node.js >= 22.13.0 が必須です。足りなければ公式 nodejs.org の Linux tarball（ピン留め 22.23.3）を `/usr/local` または `~/.local` に入れます（nodesource / apt は使いません）
+- すでに `tsx src/index.ts` が動いていて Node も条件を満たしていれば `ALREADY_RUNNING` で終了します
+- Bot は動いているが Node が古い場合は、いったん止めて Node を入れ直してから再起動します
 - `.env` が無ければ `MISSING_ENV` で失敗します
 - `node_modules` が無ければ `npm install` してから `run-forever.sh` をバックグラウンド起動し、ログは `logs/bot.out` に追記します
 - Discord コマンド登録（`npm run deploy`）の代わりにはなりません。`run-forever.sh` はコールドスタート時に自動で deploy します
+- Node 20 のまま翻訳を動かす回避策はありません（`@cursor/sdk` は `node:sqlite` が必要です）
 
 ### 6. ログの確認・再起動
 
