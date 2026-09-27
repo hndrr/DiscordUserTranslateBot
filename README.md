@@ -156,11 +156,12 @@ chmod +x run-forever.sh
 bash ensure-running.sh
 ```
 
-- Node.js >= 22.13.0 が必須です。足りなければ公式 nodejs.org の Linux tarball（ピン留め 22.23.3）を `/usr/local` または `~/.local` に入れます（nodesource / apt は使いません）
-- すでに `tsx src/index.ts` が動いていて Node も条件を満たしていれば `ALREADY_RUNNING` で終了します
-- Bot は動いているが Node が古い場合は、いったん止めて Node を入れ直してから再起動します
+- Node.js >= 22.13.0 が必須です。足りなければ公式 nodejs.org の Linux tarball（ピン留め 22.23.3）を入れます（nodesource / apt は使いません）。root またはパスワード不要の `sudo -n` なら `/usr/local`、それ以外は `~/.local`（パスワード待ちの sudo では失敗させません）
+- このリポジトリの Bot だけを対象にします。稼働中プロセスの Node（`/proc/<pid>/exe`）が条件を満たせば `ALREADY_RUNNING`、古ければ止めて入れ直して再起動します
+- 同時実行は `logs/ensure-running.lock` で直列化します
 - `.env` が無ければ `MISSING_ENV` で失敗します
 - `node_modules` が無ければ `npm install` してから `run-forever.sh` をバックグラウンド起動し、ログは `logs/bot.out` に追記します
+- 起動に失敗した場合は今回起動した wrapper とこのリポジトリの子プロセスを止めて `START_FAILED` にします（リトライで積み上がらないようにするため）
 - Discord コマンド登録（`npm run deploy`）の代わりにはなりません。`run-forever.sh` はコールドスタート時に自動で deploy します
 - Node 20 のまま翻訳を動かす回避策はありません（`@cursor/sdk` は `node:sqlite` が必要です）
 
