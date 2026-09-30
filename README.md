@@ -1,6 +1,13 @@
 # Discord User-Install Translation Bot
 
-Discord のメッセージを右クリックして翻訳・要約・返信案を作る、公式 Discord Application 用 Bot です。**Codex CLI をバックグラウンドで呼び出すバックエンド**と、既存の Cursor SDK バックエンドを選べます。Discord 個人アカウントのトークンを使う selfbot ではありません。
+Discord のメッセージを右クリックして翻訳・要約・返信案を作る、公式 Discord Application 用 Bot です。AI 処理には **Cursor SDK** または **Codex CLI** を選べます。どちらでも同じ Discord コマンドを使えます。
+
+| 利用する AI | 必要な認証 | 設定手順 |
+| --- | --- | --- |
+| Cursor SDK | Cursor API key | [Cursor 向け](#cursor-sdk) |
+| Codex CLI | Bot 専用環境での Codex ログイン、または API key | [Codex 向け](#codex-cli) |
+
+Discord の設定・インストール・起動は共通です。まず手順 1・2 を済ませ、手順 3 で使う AI を選んでください。
 
 ## 機能
 
@@ -13,7 +20,7 @@ Discord のメッセージを右クリックして翻訳・要約・返信案を
 
 ## 必要なもの
 
-- Node.js **22.13 以上**（Cursor SDK の `node:sqlite` 要件も維持）
+- Node.js **22.13 以上**
 - 自分で管理する Discord Application の **Bot token** と Application ID
 - Codex モード: 対応する Codex CLI と、この Bot 専用の認証環境
 - Cursor モード: Cursor API key
@@ -29,7 +36,7 @@ Discord のメッセージを右クリックして翻訳・要約・返信案を
 4. Install Link は **Discord Provided Link**、User Install の scope は `applications.commands`
 5. 取得したリンクから自分の Discord アカウントにインストール
 
-周辺の投稿履歴を読むには、Bot が対象サーバーにも参加し、適切な権限を持つ必要があります。必要な場合のみ Portal の **Message Content Intent** を有効化し、`DISCORD_MESSAGE_CONTENT_INTENT=1` にしてください。未設定では `0` のままで利用できます。Intent が許可されていないのに要求すると `Used disallowed intents` で切断されます。
+周辺の投稿履歴を読むには、Bot が対象サーバーにも参加し、適切な権限を持つ必要があります。必要な場合のみ Portal の **Message Content Intent** を有効化し、`DISCORD_MESSAGE_CONTENT_INTENT=1` にしてください。使わない場合は `.env.example` の `0` を維持してください。Intent が許可されていないのに要求すると `Used disallowed intents` で切断されます。
 
 ## 2. インストール
 
@@ -42,11 +49,27 @@ cp .env.example .env
 
 `.env` に `DISCORD_TOKEN` と `DISCORD_APPLICATION_ID` を安全に設定します。秘密情報は `.env.example` やコマンド引数、会話ログに書かないでください。
 
-## 3. AI バックエンド
+## 3. AI の設定（Cursor / Codex のどちらか一方）
+
+`.env` の `AI_PROVIDER` で使う AI を指定します。**`.env.example` は `codex` 設定です。Cursor を使う場合は `cursor` に変更してください。** `AI_PROVIDER` を省略した場合は、既存環境との互換性のため `cursor` になります。
+
+### Cursor SDK
+
+[Cursor Settings](https://cursor.com/settings) で API key を取得し、`.env` を次のように設定します。
+
+```env
+AI_PROVIDER=cursor
+CURSOR_API_KEY=your_cursor_api_key_here
+CURSOR_MODEL=composer-2.5
+```
+
+`CURSOR_API_KEY` は必須です。`CURSOR_MODEL` の既定値は `composer-2.5` なので、変更しなければ省略できます。Codex CLI のインストール・ログイン・`CODEX_*` の設定は不要です。
+
+設定後は **手順 4「コマンド登録と起動」** に進んでください。
 
 ### Codex CLI
 
-[公式セットアップ](https://learn.chatgpt.com/docs/cli) に従って Codex CLI を用意します。
+[公式セットアップ](https://learn.chatgpt.com/docs/cli) に従って Codex CLI を用意し、`.env` を次のように設定します。Cursor API key は不要です。
 
 ```env
 AI_PROVIDER=codex
@@ -60,15 +83,18 @@ CODEX_MAX_CONCURRENCY=2
 
 - Bot 専用 OS ユーザー／コンテナと、**新しい専用 CODEX_HOME** を推奨します。その環境でユーザー自身が通常の `codex login` を行ってください。既存の認証ファイルをコピーしないでください
 - 例: `CODEX_HOME=/absolute/path/to/dedicated-discord-codex-home codex login`。認証はサービス実行ユーザーで行い、サービスにも同じ絶対パスを設定します
-- 通常のコーディング用 Codex home は使わないでください。保存済みの指示がモデルに送られる可能性があります。`AGENTS.md`、`AGENTS.override.md`、`memories` / `memories_v2` がある home は拒否します。skill は内容を読まずに `SKILL.md` のパスを列挙し、リクエストごとに明示的に無効化します。symlink は拒否します。skill の自動参照を避けるため、入力は JSON 文字列として渡し、ドル記号をエスケープします
-- 別案として `.env` の `CODEX_API_KEY`（または環境変数 `DISCORD_CODEX_API_KEY`）を秘密情報として設定すると、リクエストごとに空の一時 CODEX_HOME を使います。この場合 `CODEX_HOME` の指定や保存済みログインは不要です。API の利用料金は契約に従って発生します
+- 通常のコーディング用 Codex home は使わないでください。保存済みの指示がモデルに送られる可能性があります。`AGENTS.md`、`AGENTS.override.md`、`memories` / `memories_v2` がある home は拒否します。skill は内容を読まずに `SKILL.md` のパスを列挙し、Codex プロセスの起動時に明示的に無効化します。symlink は拒否します。skill の自動参照を避けるため、入力は JSON 文字列として渡し、ドル記号をエスケープします
+- 別案として `.env` の `CODEX_API_KEY`（または環境変数 `DISCORD_CODEX_API_KEY`）を秘密情報として設定すると、Codex プロセスの起動時に空の一時 CODEX_HOME を用意します。この場合 `CODEX_HOME` の指定や保存済みログインは不要です。API の利用料金は契約に従って発生します
 - CLI は認証情報を通常の仕組みで参照します。Bot が認証ファイルを読み出したりコピーしたりすることはありません
 - `CODEX_MODEL` 未指定時は軽量な `gpt-6-luna`、`CODEX_REASONING_EFFORT` 未指定時は `low` を明示します。利用可能なモデルはアカウントによって異なります。非対応なら利用可能なモデルを明示してください。高価なモデルへの自動フォールバックや、有料の fast/priority モードは有効化しません。ユーザーの `config.toml` のモデル設定には依存しません
 - 推論を使わない翻訳には `CODEX_REASONING_EFFORT=none` を明示できます。検証した Luna の実 API 応答では reasoning token が 0 でした。CLI の表示候補に `none` がなくても API で受理される場合があります。処理時間にはネットワークや生成時間も含まれるため、必ず速くなるという保証ではありません
 
 Bot の認証 home は `DISCORD_CODEX_HOME` で明示してください。既存の `.env` の `CODEX_HOME` も互換性のため使用できますが、ホストから継承した `CODEX_HOME` を暗黙に流用しません。Bot の `.env` にあるモデル／reasoning 設定もホストの既定より優先します。Discord token 等の他の環境変数を一括で上書きする設定ではありません。認証ファイルのコピーは不要です。[認証の公式説明](https://learn.chatgpt.com/docs/auth) も確認してください。
 
-#### Codex の実行と制限
+設定後は **手順 4「コマンド登録と起動」** に進んでください。Codex を運用する際の制限は以下を確認してください。
+
+<details>
+<summary>Codex の実行方式・制限・CLI の互換性（運用者向け）</summary>
 
 Bot と Codex app-server を常駐させます。Codex プロセスは共有し、翻訳ごとに独立した ephemeral thread を作成するため、別の依頼の会話を混ぜません。
 
@@ -82,21 +108,11 @@ Bot と Codex app-server を常駐させます。Codex プロセスは共有し�
 - SIGINT／SIGTERM で処理中の Codex を中止し、POSIX では子プロセスグループも停止します
 - CLI の生ログやプロバイダーの例外は Discord に返さず、Bot ログにも出しません
 
-**互換性と境界:** 実 CLI のツール構成は `0.159.0-alpha.7` で、ローカルの模擬プロバイダーへの要求を使って確認しました。この構成では shell/file/MCP/browser/web ツールは提示されず、`request_user_input` のみが残ります。非対話実行では追加質問には回答せず、タイムアウトで終了します。別バージョンではオプションやツール構成が変わるため、更新後は再検証してください。未対応オプションではエラーにし、制限を緩めて再試行しません。
+**互換性と境界:** 実 CLI のツール構成は `0.159.0-alpha.7` で、ローカルの模擬プロバイダーへの要求を使って確認しました。この構成では shell/file/MCP/browser/web ツールは提示されず、`request_user_input` のみが残ります。ツール実行・承認・追加入力の要求は拒否し、プロセスを終了します。別バージョンではオプションやツール構成が変わるため、更新後は再検証してください。未対応オプションではエラーにし、制限を緩めて再試行しません。
 
 app-server は CLI の設定を読み込みます。Bot 専用の空の設定環境を使ってください。起動時と各依頼の開始時に MCP inventory が空であることを確認し、空でなければ処理を拒否します。システム／管理者配布設定の MCP 等がある環境は、この Bot 用の隔離環境として適しません。専用環境に追加の MCP・skills・hooks を設定せず、実効ツール構成を確認してから運用してください。read-only 単独は「ファイルを読めない」という意味ではなく、プロンプトの注意書きだけでは安全境界になりません。ephemeral thread も、CLI の認証・キャッシュ・診断状態まで一切保存しない保証ではありません。終了した thread は unsubscribe し、64件処理して idle になったらプロセスを再起動してメモリを制限します。
 
-選択メッセージ・作者名・取得した文脈・モーダルの指示は、選んだ AI プロバイダーへ送信されます。機密情報の取り扱い、Bot を利用できる人、利用料金を確認してから有効化してください。
-
-### Cursor SDK（既存の動作）
-
-```env
-AI_PROVIDER=cursor
-CURSOR_API_KEY=安全に設定したキー
-CURSOR_MODEL=composer-2.5
-```
-
-`AI_PROVIDER` 未指定の場合は後方互換のため `cursor` です。Codex モードでは Cursor API key は不要で、Cursor SDK を初期化しません。Cursor モードは引き続き `tools: []` で文章生成のみを行います。
+</details>
 
 ## 4. コマンド登録と起動
 
@@ -163,6 +179,8 @@ bash -n run-forever.sh ensure-running.sh
 - **自分用アプリを非公開にしたい:** Installation の Install Link を None にしてから Public Bot を OFF。初回セットアップには不要です
 
 ## セキュリティ
+
+Cursor / Codex のどちらを使う場合も、選択メッセージ・作者名・取得した文脈・モーダルの指示は、選んだ AI プロバイダーへ送信されます。利用できる人、送信する情報、利用料金を確認してから有効化してください。Cursor は `tools: []`、Codex は上記の制限を使い、文章生成のみを行います。
 
 `.env`、ログ、認証情報を Git に追加しないでください。漏えい時は該当サービスで無効化・再発行してください。Bot token は Discord Application のものだけを使用してください。
 

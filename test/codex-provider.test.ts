@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, test, type TestContext } from 'node:test';
-import { mkdtemp, mkdir, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -11,7 +11,7 @@ import {
 import { getAgentProvider } from '../src/agent-provider.js';
 import { parseBilingualDraft, parseSimilarIds, translateMessage } from '../src/translator.js';
 
-const fixture = await mkdtemp(path.join(tmpdir(), 'codex-rpc-test-'));
+const fixture = await realpath(await mkdtemp(path.join(tmpdir(), 'codex-rpc-test-')));
 const binary = path.join(fixture, 'fake-codex');
 await writeFile(binary, `#!${process.execPath}
 const readline = require('node:readline');
