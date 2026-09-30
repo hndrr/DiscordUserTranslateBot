@@ -69,21 +69,21 @@ Bot の認証 home は `DISCORD_CODEX_HOME` で明示してください。既存
 
 #### Codex の実行と制限
 
-Bot は常駐し、操作ごとに独立した `codex exec` 子プロセスを起動します。
+Bot と Codex app-server を常駐させます。Codex プロセスは共有し、翻訳ごとに独立した ephemeral thread を作成するため、別の依頼の会話を混ぜません。
 
 - shell を介さず、入力は標準入力へ渡すため、Discord の本文をコマンド引数として実行しません
-- 一時 HOME／作業ディレクトリ、`--ephemeral`、`--ignore-user-config`、`--strict-config`、`--sandbox read-only` を使用
+- 一時 HOME、依頼ごとの空の作業ディレクトリ、ephemeral thread、`--strict-config`、read-only sandbox を使用
 - shell、exec、apps、plugins、hooks、browser、computer、image、multi-agent、view_image、goals、memories、shell snapshot を無効化し、web search も無効化
 - 承認を自動承認するオプションや sandbox の迂回は使用しません。`approval_policy=never` は権限昇格を許可せず、承認が必要な操作を失敗させる指定です
 - Discord／Cursor token や無関係な環境変数は子プロセスに渡しません
 - 同時実行は既定 2 件（上限 8）。満杯のときは追加要求を拒否し、無制限に待ち行列を作りません
-- 既定 120 秒で打ち切り。入力・最終出力は各 64 KiB、診断出力は 256 KiB まで。終了時にはリクエスト用一時ファイルを削除します
+- 既定 120 秒で打ち切り。入力・最終出力は各 64 KiB、protocol の1行は 256 KiB まで。タイムアウト時は生成を中止して worker を終了し、次の依頼で復旧します。返答済みの turn はすぐ返し、プロセス終了待ちはしません
 - SIGINT／SIGTERM で処理中の Codex を中止し、POSIX では子プロセスグループも停止します
 - CLI の生ログやプロバイダーの例外は Discord に返さず、Bot ログにも出しません
 
 **互換性と境界:** 実 CLI のツール構成は `0.159.0-alpha.7` で、ローカルの模擬プロバイダーへの要求を使って確認しました。この構成では shell/file/MCP/browser/web ツールは提示されず、`request_user_input` のみが残ります。非対話実行では追加質問には回答せず、タイムアウトで終了します。別バージョンではオプションやツール構成が変わるため、更新後は再検証してください。未対応オプションではエラーにし、制限を緩めて再試行しません。
 
-`--ignore-user-config` は**すべての設定を無効化する指定ではありません**。システム／管理者配布設定の MCP 等がある環境は、この Bot 用の隔離環境として適しません。専用環境に追加の MCP・skills・hooks を設定せず、実効ツール構成を確認してから運用してください。read-only 単独は「ファイルを読めない」という意味ではなく、プロンプトの注意書きだけでは安全境界になりません。`--ephemeral` も、CLI の認証・キャッシュ・診断状態まで一切保存しない保証ではありません。
+app-server は CLI の設定を読み込みます。Bot 専用の空の設定環境を使ってください。起動時と各依頼の開始時に MCP inventory が空であることを確認し、空でなければ処理を拒否します。システム／管理者配布設定の MCP 等がある環境は、この Bot 用の隔離環境として適しません。専用環境に追加の MCP・skills・hooks を設定せず、実効ツール構成を確認してから運用してください。read-only 単独は「ファイルを読めない」という意味ではなく、プロンプトの注意書きだけでは安全境界になりません。ephemeral thread も、CLI の認証・キャッシュ・診断状態まで一切保存しない保証ではありません。終了した thread は unsubscribe し、64件処理して idle になったらプロセスを再起動してメモリを制限します。
 
 選択メッセージ・作者名・取得した文脈・モーダルの指示は、選んだ AI プロバイダーへ送信されます。機密情報の取り扱い、Bot を利用できる人、利用料金を確認してから有効化してください。
 
@@ -148,7 +148,7 @@ npm run build
 bash -n run-forever.sh ensure-running.sh
 ```
 
-テストは実際の Discord 接続・投稿・AI 推論・認証情報を必要としません。実際の Codex 認証／モデル応答と Discord のエンドツーエンド動作確認は、専用環境で別途行ってください。
+テストは実際の Discord 接続・投稿・AI 推論・認証情報を必要としません。同一プロセスの再利用、会話の分離、失敗・タイムアウト・強制終了を模擬 RPC で検証します。実際の Codex 認証／モデル応答と Discord のエンドツーエンド動作確認は、専用環境で別途行ってください。
 
 ## トラブルシューティング
 

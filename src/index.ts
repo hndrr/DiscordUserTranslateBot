@@ -12,7 +12,7 @@ import { config } from 'dotenv';
 import { configureDiscordProxy } from './discord-proxy.js';
 import { createDiscordRestTransport } from './discord-rest.js';
 import { runGuardedInteraction, type InteractionLifecycle } from './interaction-guard.js';
-import { stopAgentRequests, validateAgentConfiguration } from './agent-provider.js';
+import { startAgentRequests, stopAgentRequests, validateAgentConfiguration } from './agent-provider.js';
 import {
   COMMAND_NAMES,
   INSTRUCTION_INPUT_ID,
@@ -494,8 +494,7 @@ let shuttingDown = false;
 function shutdown(): void {
   if (shuttingDown) return;
   shuttingDown = true;
-  stopAgentRequests();
-  void Promise.allSettled([client.destroy(), discordRest.stop()]).then((results) => {
+  void Promise.allSettled([stopAgentRequests(), client.destroy(), discordRest.stop()]).then((results) => {
     gatewayProxy?.restore();
     if (results.some((result) => result.status === 'rejected')) {
       console.error('Discord connection cleanup failed');
@@ -508,6 +507,7 @@ process.once('SIGTERM', shutdown);
 
 void (async () => {
   try {
+    await startAgentRequests();
     await discordRest.start(client.rest);
     if (shuttingDown) return;
     console.log('Discord REST acknowledgement transport is warm');

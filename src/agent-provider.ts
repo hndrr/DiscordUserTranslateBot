@@ -1,6 +1,6 @@
 import { config } from 'dotenv';
 import { resolveBotCodexEnvironment } from './bot-environment.js';
-import { runCodexPrompt, stopCodexRequests, validateCodexConfiguration, DEFAULT_CODEX_MODEL } from './codex-provider.js';
+import { runCodexPrompt, startCodexRequests, stopCodexRequests, validateCodexConfiguration, DEFAULT_CODEX_MODEL } from './codex-provider.js';
 
 const loadedConfig = config();
 const codexEnv = resolveBotCodexEnvironment(process.env, loadedConfig.parsed);
@@ -73,6 +73,10 @@ export async function runAgentPrompt(prompt: string, errorLabel: string): Promis
   }
 }
 
-export function stopAgentRequests(): void {
-  stopCodexRequests();
+export async function startAgentRequests(): Promise<void> {
+  if (getAgentProvider() === 'codex') await startCodexRequests(codexEnv);
+}
+
+export async function stopAgentRequests(): Promise<void> {
+  await stopCodexRequests();
 }
