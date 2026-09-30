@@ -1,4 +1,5 @@
 import { type Message } from 'discord.js';
+import { classifyInteractionFailure } from './interaction-guard.js';
 
 const MAX_CONTEXT_MESSAGES = 25;
 const MAX_CONTEXT_CHARS = 4000;
@@ -211,7 +212,7 @@ export async function collectMessageContext(message: Message): Promise<{
         if (fetched.size > 1) usedNearby = true;
       }
     } catch (error) {
-      console.warn('Could not fetch nearby messages:', error);
+      console.warn('Could not fetch nearby messages:', classifyInteractionFailure(error));
     }
 
     try {
@@ -226,7 +227,7 @@ export async function collectMessageContext(message: Message): Promise<{
         if (threadMsgs.size > 0) usedNearby = true;
       }
     } catch (error) {
-      console.warn('Could not fetch thread messages:', error);
+      console.warn('Could not fetch thread messages:', classifyInteractionFailure(error));
     }
   }
 
@@ -290,7 +291,7 @@ export async function collectNearbyMessages(message: Message): Promise<{
       }
       if (fetched.size > 1) usedNearby = true;
     } catch (error) {
-      console.warn('Could not fetch nearby messages for similar search (around):', error);
+      console.warn('Could not fetch nearby messages for similar search (around):', classifyInteractionFailure(error));
       fetchFailed = true;
     }
 
@@ -308,7 +309,7 @@ export async function collectNearbyMessages(message: Message): Promise<{
         }
         if (before.size > 0) usedNearby = true;
       } catch (error) {
-        console.warn('Could not fetch nearby messages for similar search (before):', error);
+        console.warn('Could not fetch nearby messages for similar search (before):', classifyInteractionFailure(error));
         fetchFailed = true;
       }
 
@@ -324,7 +325,7 @@ export async function collectNearbyMessages(message: Message): Promise<{
         }
         if (after.size > 0) usedNearby = true;
       } catch (error) {
-        console.warn('Could not fetch nearby messages for similar search (after):', error);
+        console.warn('Could not fetch nearby messages for similar search (after):', classifyInteractionFailure(error));
         fetchFailed = true;
       }
 
@@ -348,7 +349,7 @@ export async function collectNearbyMessages(message: Message): Promise<{
       if (threadMsgs.size > 0) usedNearby = true;
     }
   } catch (error) {
-    console.warn('Could not fetch thread messages for similar search:', error);
+    console.warn('Could not fetch thread messages for similar search:', classifyInteractionFailure(error));
     fetchFailed = true;
   }
 
