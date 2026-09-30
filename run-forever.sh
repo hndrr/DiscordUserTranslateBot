@@ -19,6 +19,9 @@ if command -v flock >/dev/null 2>&1; then
     flock -n 8 || { echo "Bot supervisor is already running."; exit 1; }
 fi
 
+# Fail once on missing local setup instead of restarting a broken bot forever.
+node --import tsx src/preflight.ts
+
 # Registration changes remote Discord state. Make it an explicit one-time step.
 if [ "${DEPLOY_COMMANDS:-0}" = "1" ]; then
     npm run deploy
