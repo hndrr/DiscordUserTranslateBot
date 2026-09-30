@@ -123,6 +123,8 @@ type RpcPending = {
 };
 type TurnPending = {
   turnId?: string;
+  ended: boolean;
+  finish: () => void;
   text: string;
   finalPhase: boolean;
   resolve: (text: string) => void;
@@ -139,6 +141,7 @@ export class CodexTextSession {
   private nextId = 0;
   private active = 0;
   private served = 0;
+  private recycleRequested = false;
   private resetting?: Promise<void>;
   private readonly pending = new Map<number, RpcPending>();
   private readonly turns = new Map<string, TurnPending>();
@@ -247,6 +250,7 @@ export class CodexTextSession {
     if (!turn) return;
     const turnId = params.turnId || params.turn?.id;
     if (turn.turnId && turnId && turn.turnId !== turnId) return;
+    if (typeof turnId === 'string') turn.turnId = turnId;
     if (message.method === 'item/completed') {
       const item = params.item;
       if (item?.type !== 'agentMessage' || typeof item.text !== 'string' || item.phase === 'commentary') return;
@@ -260,6 +264,8 @@ export class CodexTextSession {
       }
     }
     if (message.method === 'turn/completed') {
+      turn.ended = true;
+      turn.finish();
       if (params.turn?.status !== 'completed') turn.reject(new Error('Codex turn failed'));
       else if (!turn.text) turn.reject(new Error('Codex result was empty'));
       else turn.resolve(turn.text);
@@ -290,7 +296,7 @@ export class CodexTextSession {
 
   async run(prompt: string): Promise<string> {
     if (this.stopped) throw new Error('Codex provider is shutting down');
-    if (this.active >= boundedInteger(this.env.CODEX_MAX_CONCURRENCY, 2, 8)) {
+    if (this.recycleRequested || this.active >= boundedInteger(this.env.CODEX_MAX_CONCURRENCY, 2, 8)) {
       throw new Error('Codex is busy; retry shortly');
     }
     const encoded = JSON.stringify(prompt).replace(/\$/g, '\\u0024');
@@ -300,6 +306,8 @@ export class CodexTextSession {
     let turnId: string | undefined;
     let directory: string | undefined;
     let completed = false;
+    let pending: TurnPending | undefined;
+    let finished: Promise<void> | undefined;
     let timer: NodeJS.Timeout | undefined;
     try {
       await this.start();
@@ -318,12 +326,13 @@ export class CodexTextSession {
       const result = new Promise<string>((yes, no) => { resolve = yes; reject = no; });
       // The server can notify completion before replying to turn/start.
       void result.catch(() => {});
-      const pending: TurnPending = { text: '', finalPhase: false, resolve, reject };
+      let finish!: () => void;
+      finished = new Promise<void>((done) => { finish = done; });
+      pending = { text: '', finalPhase: false, ended: false, finish, resolve, reject };
       this.turns.set(threadId, pending);
       timer = setTimeout(() => {
-        if (turnId) void this.rpc('turn/interrupt', { threadId, turnId }, 1500).catch(() => {});
         reject(new Error('Codex request cancelled or timed out'));
-        // A timed-out turn must not continue generating in the background.
+        // Stop accepting new work; finally interrupts this turn before cleanup.
         this.recycle();
       }, boundedInteger(this.env.CODEX_TIMEOUT_MS, 120_000, 600_000));
       const response = await this.rpc('turn/start', {
@@ -338,21 +347,53 @@ export class CodexTextSession {
     } finally {
       if (timer) clearTimeout(timer);
       if (threadId) {
+        if (!completed) {
+          this.recycle();
+          if (pending && !pending.ended) {
+            try {
+              const id = pending.turnId || turnId;
+              if (!id) throw new Error('Codex turn id is unavailable');
+              await this.interruptTurn(threadId, id, finished!);
+            } catch {
+              // A failed/unconfirmed cancellation cannot leave generation running.
+              this.recycle(true);
+            }
+          }
+        }
         this.turns.delete(threadId);
         void this.rpc('thread/unsubscribe', { threadId }, 1500).catch(() => {});
       }
       if (directory) await rm(directory, { recursive: true, force: true });
       this.active--;
       // Unsubscribe has a server-side grace period. Cap retained ephemeral threads.
-      if (threadId && !completed) this.recycle();
-      else if (++this.served >= 64 && this.active === 0) this.recycle();
+      if (this.recycleRequested || ++this.served >= 64) this.recycle();
     }
   }
 
-  private recycle(): void {
-    if (this.resetting) return;
+  private async interruptTurn(threadId: string, turnId: string, finished: Promise<void>): Promise<void> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      // The RPC reply only acknowledges cancellation; turn/completed confirms it.
+      await Promise.race([
+        Promise.all([this.rpc('turn/interrupt', { threadId, turnId }, 1500), finished]),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Codex cancellation was not confirmed')), 1500);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  private recycle(force = false): void {
+    this.recycleRequested = true;
+    if (this.resetting || (!force && this.active > 0)) return;
+    this.recycleRequested = false;
     this.served = 0;
-    this.resetting = this.stopProcess().finally(() => { this.resetting = undefined; });
+    this.resetting = this.stopProcess().finally(() => {
+      this.resetting = undefined;
+      this.recycleRequested = false;
+    });
   }
 
   private failAll(error: Error): void {

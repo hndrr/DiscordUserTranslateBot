@@ -17,6 +17,8 @@ await writeFile(binary, `#!${process.execPath}
 const readline = require('node:readline');
 let number = 0;
 const threads = new Map();
+const turns = new Map();
+const interrupts = [];
 const send = (data) => process.stdout.write(JSON.stringify(data) + '\\n');
 const reply = (id, result) => send({id,result});
 const notify = (method, params) => send({method,params});
@@ -27,15 +29,25 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  if(request.method==='mcpServerStatus/list') return reply(request.id,{data:process.env.CODEX_API_KEY==='fake-mcp'?[{name:'unexpected-server'}]:[],nextCursor:null});
  if(request.method==='thread/start') { const id='thread-'+(++number); threads.set(id,p); return reply(request.id,{thread:{id,ephemeral:true}}); }
  if(request.method==='thread/unsubscribe') {threads.delete(p.threadId); return reply(request.id,{});}
- if(request.method==='turn/interrupt') return reply(request.id,{});
+ if(request.method==='turn/interrupt') {
+   const turn=turns.get(p.threadId);
+   if(!turn || turn.id!==p.turnId) return send({id:request.id,error:{message:'wrong turn'}});
+   interrupts.push({threadId:p.threadId,turnId:p.turnId,prompt:turn.prompt});
+   if(turn.prompt==='interrupt-error') return send({id:request.id,error:{message:'cannot interrupt'}});
+   reply(request.id,{});
+   if(turn.prompt==='interrupt-unconfirmed') return;
+   turns.delete(p.threadId);
+   return setTimeout(()=>notify('turn/completed',{threadId:p.threadId,turn:{id:p.turnId,status:'interrupted'}}),20);
+ }
  if(request.method!=='turn/start') return reply(request.id,{});
  const prompt=JSON.parse(p.input[0].text); const turnId='turn-'+number;
+ turns.set(p.threadId,{id:turnId,prompt});
  if(prompt==='rpc-error') return send({id:request.id,error:{message:'PRIVATE_ERROR_CONTENT'}});
  if(prompt==='crash') return process.exit(7);
  if(prompt==='tool') return send({id:'server-request',method:'item/commandExecution/requestApproval',params:{}});
  const finish=()=>{
    if(prompt==='failure') {notify('turn/completed',{threadId:p.threadId,turn:{id:turnId,status:'failed'}});return;}
-   let text=JSON.stringify({pid:process.pid,threadId:p.threadId,prompt,thread:threads.get(p.threadId),turn:p,env:{discordPresent:!!process.env.DISCORD_TOKEN,cursorPresent:!!process.env.CURSOR_API_KEY},args:process.argv.slice(2)});
+   let text=JSON.stringify({pid:process.pid,threadId:p.threadId,prompt,thread:threads.get(p.threadId),turn:p,interrupts,env:{discordPresent:!!process.env.DISCORD_TOKEN,cursorPresent:!!process.env.CURSOR_API_KEY},args:process.argv.slice(2)});
    if(prompt==='empty') text='';
    if(prompt==='oversized') text='x'.repeat(70000);
    notify('item/completed',{threadId:p.threadId,turnId,item:{type:'agentMessage',id:'item',text:'COMMENTARY_NOT_FINAL',phase:'commentary'}});
@@ -43,9 +55,11 @@ readline.createInterface({input:process.stdin}).on('line', line => {
    notify('turn/completed',{threadId:p.threadId,turn:{id:turnId,status:'completed'}});
  };
  if(prompt==='early') {finish();reply(request.id,{turn:{id:turnId}});return;}
+ if(prompt==='late-start') return setTimeout(()=>reply(request.id,{turn:{id:turnId}}),150);
  reply(request.id,{turn:{id:turnId}});
- if(prompt==='timeout') return;
+ if(['timeout','interrupt-error','interrupt-unconfirmed'].includes(prompt)) return;
  if(prompt==='delay') return setTimeout(finish,100);
+ if(prompt.startsWith('delay:')) return setTimeout(finish,Number(prompt.slice(6)));
  if(prompt==='stubborn') process.on('SIGTERM',()=>{});
  finish();
 });
@@ -145,6 +159,60 @@ test('timeout terminates background generation and next request starts a fresh w
   assert.notEqual(next.pid,pid);
   assert.throws(()=>process.kill(pid!,0),{code:'ESRCH'});
 });
+
+test('a timed-out turn is interrupted without cancelling a healthy concurrent turn', async t => {
+  const server = session(t, { CODEX_TIMEOUT_MS: '400' });
+  await server.start();
+  const pid = server.pid;
+  const timedOut = assert.rejects(server.run('timeout'), /timed out/);
+  await delay(150);
+  const healthy = server.run('delay:350');
+  // Attach a rejection handler immediately so a regression is reported by the assertion.
+  void healthy.catch(() => {});
+  await timedOut;
+  assert.equal(server.pid, pid);
+  await assert.rejects(server.run('during-drain'), /busy/);
+  const result = JSON.parse(await healthy);
+  assert.equal(result.pid, pid);
+  assert.equal(result.interrupts.length, 1);
+  assert.equal(result.interrupts[0].prompt, 'timeout');
+  assert.notEqual(result.interrupts[0].threadId, result.threadId);
+  assert.notEqual(JSON.parse(await server.run('after-drain')).pid, pid);
+  assert.throws(() => process.kill(pid!, 0), { code: 'ESRCH' });
+});
+
+test('a failed completed turn also waits for healthy concurrent work before recycling', async t => {
+  const server = session(t);
+  await server.start();
+  const pid = server.pid;
+  const healthy = server.run('delay');
+  void healthy.catch(() => {});
+  await assert.rejects(server.run('failure'), /turn failed/);
+  assert.equal(JSON.parse(await healthy).pid, pid);
+  assert.notEqual(JSON.parse(await server.run('recovery')).pid, pid);
+});
+
+test('a turn/start reply arriving after timeout is still interrupted before cleanup', async t => {
+  const server = session(t, { CODEX_TIMEOUT_MS: '80' });
+  await server.start();
+  const pid = server.pid;
+  await assert.rejects(server.run('late-start'), /timed out/);
+  assert.notEqual(JSON.parse(await server.run('recovery')).pid, pid);
+  assert.throws(() => process.kill(pid!, 0), { code: 'ESRCH' });
+});
+
+for (const prompt of ['interrupt-error', 'interrupt-unconfirmed']) {
+  test(`unconfirmed cancellation (${prompt}) bounds cleanup and terminates the worker`, async t => {
+    const server = session(t, { CODEX_TIMEOUT_MS: '80' });
+    await server.start();
+    const pid = server.pid;
+    const started = Date.now();
+    await assert.rejects(server.run(prompt), /timed out/);
+    assert.notEqual(JSON.parse(await server.run('recovery')).pid, pid);
+    assert.ok(Date.now() - started < 3000);
+    assert.throws(() => process.kill(pid!, 0), { code: 'ESRCH' });
+  });
+}
 
 test('process crash and unexpected tool requests fail closed without replay', async t => {
   const server=session(t);
