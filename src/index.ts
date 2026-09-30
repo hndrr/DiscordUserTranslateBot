@@ -2,6 +2,7 @@ import {
   ActionRowBuilder,
   Client,
   GatewayIntentBits,
+  MessageFlags,
   MessageContextMenuCommandInteraction,
   ModalBuilder,
   ModalSubmitInteraction,
@@ -93,7 +94,7 @@ if (process.env.DISCORD_MESSAGE_CONTENT_INTENT !== '0') {
 
 const client = new Client({
   intents,
-  rest: { agent: discordRest.agent, timeout: 15_000, retries: 0 },
+  rest: { agent: discordRest.agent, makeRequest: discordRest.makeRequest, timeout: 15_000, retries: 0 },
 });
 
 client.once('ready', () => {
@@ -157,8 +158,8 @@ client.on('interactionCreate', (interaction) => {
       const content = failureMessages[interaction.commandName];
       if (interaction.commandName === COMMAND_NAMES.RUN_INSTRUCTION) {
         return acknowledged
-          ? interaction.followUp({ content, ephemeral: true })
-          : interaction.reply({ content, ephemeral: true });
+          ? interaction.followUp({ content, flags: MessageFlags.Ephemeral })
+          : interaction.reply({ content, flags: MessageFlags.Ephemeral });
       }
       return interaction.editReply(content);
     },
@@ -202,7 +203,7 @@ async function handleTranslation(
   targetLanguage: string,
   lifecycle: InteractionLifecycle,
 ) {
-  await lifecycle.acknowledge(() => interaction.deferReply({ ephemeral: true }));
+  await lifecycle.acknowledge(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
   const message = interaction.targetMessage;
   const originalText = message.content;
 
@@ -222,7 +223,7 @@ async function handleTranslation(
 }
 
 async function handleSummarize(interaction: MessageContextMenuCommandInteraction, lifecycle: InteractionLifecycle) {
-  await lifecycle.acknowledge(() => interaction.deferReply({ ephemeral: true }));
+  await lifecycle.acknowledge(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
   const { targetText, contextText, authorName } = await collectMessageContext(
     interaction.targetMessage,
   );
@@ -264,7 +265,7 @@ function formatDraftReply(japanese: string, english: string): string {
 }
 
 async function handleDraftReply(interaction: MessageContextMenuCommandInteraction, lifecycle: InteractionLifecycle) {
-  await lifecycle.acknowledge(() => interaction.deferReply({ ephemeral: true }));
+  await lifecycle.acknowledge(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
   const { targetText, contextText, authorName } = await collectMessageContext(
     interaction.targetMessage,
   );
@@ -283,7 +284,7 @@ async function handleDraftReply(interaction: MessageContextMenuCommandInteractio
 }
 
 async function handleFindSimilar(interaction: MessageContextMenuCommandInteraction, lifecycle: InteractionLifecycle) {
-  await lifecycle.acknowledge(() => interaction.deferReply({ ephemeral: true }));
+  await lifecycle.acknowledge(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
   const message = interaction.targetMessage;
   const { targetText, authorName, lines, historyUnavailable } =
     await collectNearbyMessages(message);
@@ -398,7 +399,7 @@ async function handleRunInstructionMenu(
 }
 
 async function handleInstructionModal(interaction: ModalSubmitInteraction, lifecycle: InteractionLifecycle) {
-  await lifecycle.acknowledge(() => interaction.deferReply({ ephemeral: true }));
+  await lifecycle.acknowledge(() => interaction.deferReply({ flags: MessageFlags.Ephemeral }));
   const parsed = parseInstructionModalCustomId(interaction.customId);
   if (!parsed) {
     await interaction.editReply('❌ モーダル情報が不正です。');
