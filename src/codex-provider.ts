@@ -8,7 +8,7 @@ const MAX_PROMPT_BYTES = 64 * 1024;
 const MAX_OUTPUT_BYTES = 64 * 1024;
 const MAX_LINE_BYTES = 256 * 1024;
 export const DEFAULT_CODEX_MODEL = 'gpt-6-luna';
-const REASONING_EFFORTS = new Set(['minimal', 'low', 'medium', 'high']);
+const REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high']);
 
 export function boundedInteger(value: string | undefined, fallback: number, max: number): number {
   if (value === undefined || value === '') return fallback;

@@ -101,6 +101,15 @@ test('three calls reuse one process but use independent ephemeral conversations'
   }
 });
 
+test('explicit none effort reaches both thread configuration and turn without a paid tier', async t => {
+  const server=session(t,{CODEX_REASONING_EFFORT:'none'});
+  const out=JSON.parse(await server.run('hello'));
+  assert.equal(out.thread.model,'gpt-6-luna');
+  assert.equal(out.thread.config.model_reasoning_effort,'none');
+  assert.equal(out.turn.effort,'none');
+  assert.equal(out.turn.serviceTierForTurn,'default');
+});
+
 test('stdin data stays data; early completion before RPC reply is handled', async t => {
   const server=session(t);
   const source='$(touch SHOULD_NOT_EXIST) $secret-skill 日本語';

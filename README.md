@@ -64,6 +64,7 @@ CODEX_MAX_CONCURRENCY=2
 - 別案として `.env` の `CODEX_API_KEY`（または環境変数 `DISCORD_CODEX_API_KEY`）を秘密情報として設定すると、リクエストごとに空の一時 CODEX_HOME を使います。この場合 `CODEX_HOME` の指定や保存済みログインは不要です。API の利用料金は契約に従って発生します
 - CLI は認証情報を通常の仕組みで参照します。Bot が認証ファイルを読み出したりコピーしたりすることはありません
 - `CODEX_MODEL` 未指定時は軽量な `gpt-6-luna`、`CODEX_REASONING_EFFORT` 未指定時は `low` を明示します。利用可能なモデルはアカウントによって異なります。非対応なら利用可能なモデルを明示してください。高価なモデルへの自動フォールバックや、有料の fast/priority モードは有効化しません。ユーザーの `config.toml` のモデル設定には依存しません
+- 推論を使わない翻訳には `CODEX_REASONING_EFFORT=none` を明示できます。検証した Luna の実 API 応答では reasoning token が 0 でした。CLI の表示候補に `none` がなくても API で受理される場合があります。処理時間にはネットワークや生成時間も含まれるため、必ず速くなるという保証ではありません
 
 Bot の認証 home は `DISCORD_CODEX_HOME` で明示してください。既存の `.env` の `CODEX_HOME` も互換性のため使用できますが、ホストから継承した `CODEX_HOME` を暗黙に流用しません。Bot の `.env` にあるモデル／reasoning 設定もホストの既定より優先します。Discord token 等の他の環境変数を一括で上書きする設定ではありません。認証ファイルのコピーは不要です。[認証の公式説明](https://learn.chatgpt.com/docs/auth) も確認してください。
 
