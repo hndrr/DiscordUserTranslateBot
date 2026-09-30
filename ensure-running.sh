@@ -172,6 +172,7 @@ ensure_node() {
 }
 
 mkdir -p logs
+touch logs/bot.out
 exec 9>>logs/ensure-running.lock
 flock 9
 
@@ -194,17 +195,18 @@ fi
 
 if [ ! -d node_modules ]; then
   echo "INSTALLING"
-  npm install
+  npm ci
 fi
 
-nohup bash run-forever.sh >> logs/bot.out 2>&1 &
+log_start=$(wc -l < logs/bot.out 2>/dev/null || echo 0)
+nohup bash run-forever.sh >> logs/bot.out 2>&1 9>&- &
 FOREVER_PID=$!
 disown || true
 
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   sleep 2
   if has_repo_bot; then
-    if tail -n 40 logs/bot.out | grep -q 'Bot is ready'; then
+    if tail -n "+$((log_start + 1))" logs/bot.out | grep -q 'Bot is ready'; then
       echo "STARTED"
       exit 0
     fi

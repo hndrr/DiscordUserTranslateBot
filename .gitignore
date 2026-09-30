@@ -11,3 +11,8 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+
+# Local runtime state and private environment variants
+logs/
+.env.*
+!.env.example

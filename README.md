@@ -1,331 +1,190 @@
 # Discord User-Install Translation Bot
 
-Discord上でメッセージを右クリックして簡単に翻訳できるUser-Install対応のBotです。Cursor SDKを使用してAI翻訳を実行します。
+Discord のメッセージを右クリックして翻訳・要約・返信案を作る、公式 Discord Application 用 Bot です。AI 処理には **Cursor SDK** または **Codex CLI** を選べます。どちらでも同じ Discord コマンドを使えます。
 
-## 前提
+| 利用する AI | 必要な認証 | 設定手順 |
+| --- | --- | --- |
+| Cursor SDK | Cursor API key | [Cursor 向け](#cursor-sdk) |
+| Codex CLI | Bot 専用環境での Codex ログイン、または API key | [Codex 向け](#codex-cli) |
 
-このBotを動かすには、**自分の Discord Application** と **Cursor API Key** が必要です。トークンと API キーは `.env` に置き、コミット・共有しないでください。
+Discord の設定・インストール・起動は共通です。まず手順 1・2 を済ませ、手順 3 で使う AI を選んでください。
 
 ## 機能
 
-- 📱 **User-Install対応**: サーバー管理者権限不要で、個人アカウントにインストール可能
-- 🌐 **メッセージコンテキストメニュー翻訳**: 
-  - 「Translate to English」- 英語に翻訳
-  - 「Translate to Japanese」- 日本語に翻訳
-- 📝 **要約**: 「要約」で選択したメッセージを短く日本語要約。スレッドや返信チェーンがある場合は、前後の文脈（直近十数件／約4,000文字まで）も踏まえます
-- 💬 **返信ドラフト**: 「返信ドラフト」で返信案を生成。日本語と英語の対訳つき
-- 🔍 **類似を探す**: 周辺メッセージから同じ意図の投稿を探し、作者・短い抜粋・ジャンプリンクを一覧表示。履歴が読めない（User Install 等）場合は、選択メッセージ内の関連整理にフォールバック
-- ⚡ **指示して実行**: モーダルに自由指示（例: 似た質問探して / 丁寧に言い換えて / 論点だけ3つ）を入力して実行
-- 🤖 **Cursor SDK統合**: Composer 2.5モデルを使用した高品質な翻訳・要約・下書き・類似検索・指示実行
-- 🔒 **プライベート応答**: 結果は自分だけに表示されます（ephemeral）
+- **Translate to English / Translate to Japanese**: 選択したメッセージを翻訳
+- **要約**: スレッド／返信の文脈を踏まえ、短く日本語要約
+- **返信ドラフト**: 日本語と英語の返信案を生成。自動送信はしません
+- **類似を探す**: 読み取れる周辺履歴から似た意図の投稿を探し、作者・抜粋・リンクを表示。履歴が取れなければメッセージ内の関連整理にフォールバック
+- **指示して実行**: モーダルの指示で文章を変換。シェル実行やファイル操作の機能ではありません
+- 結果は呼び出した本人だけに表示する **ephemeral 応答**
 
-## 必要要件
+## 必要なもの
 
-- Node.js >= 22.13.0
-- Discord Developer Account
-- Cursor API Key
+- Node.js **22.13 以上**
+- 自分で管理する Discord Application の **Bot token** と Application ID
+- Codex モード: 対応する Codex CLI と、この Bot 専用の認証環境
+- Cursor モード: Cursor API key
+- 常時稼働したい場合: 電源・ネットワーク・実行環境が維持されるホスト
 
-## 実行環境の選び方
+## 1. Discord Application
 
-このBotは以下の2つの方法で実行できます：
+[Developer Portal](https://discord.com/developers/applications) で Application を作成します。
 
-### 💡 A. Grok Bot のコンピュータで実行（推奨）
+1. Bot タブで Bot token を取得。チャットや Git に貼り付けず、安全な秘密情報入力で保存します
+2. Application ID を控えます
+3. Installation → Installation Contexts で **User Install** を有効化
+4. Install Link は **Discord Provided Link**、User Install の scope は `applications.commands`
+5. 取得したリンクから自分の Discord アカウントにインストール
 
-Grok Botのアシスタント（例：「Discord翻訳」）を利用している場合、アシスタントのLinux VM上でBotを常時起動できます。
+周辺の投稿履歴を読むには、Bot が対象サーバーにも参加し、適切な権限を持つ必要があります。必要な場合のみ Portal の **Message Content Intent** を有効化し、`DISCORD_MESSAGE_CONTENT_INTENT=1` にしてください。使わない場合は `.env.example` の `0` を維持してください。Intent が許可されていないのに要求すると `Used disallowed intents` で切断されます。
 
-**メリット：**
-- ✅ 自分のPCを起動したままにする必要がない
-- ✅ Botが24時間稼働し続ける
-- ✅ セットアップをアシスタントに任せられる
-
-**セットアップの流れ:**  
-詳しくは下記の [A. Grok Bot のコンピュータでの実行手順](#a-grok-bot-のコンピュータでの実行手順) をご覧ください。
-
-### 🖥️ B. ローカルPCで実行
-
-従来通り、自分のMac/Windows/Linux PCでBotを実行できます。
-
-**メリット：**
-- ✅ 自分のPC環境で直接管理できる
-- ✅ 開発・カスタマイズがしやすい
-
-**セットアップの流れ:**  
-詳しくは下記の [B. ローカルPCでの実行手順](#b-ローカルpcでの実行手順) をご覧ください。
-
----
-
-## セットアップ手順
-
-### 共通: Discord Applicationの作成
-
-**※この手順はどちらの実行環境でも必要です。ブラウザで実施してください。**
-
-### 1. Discord Applicationの作成
-
-1. [Discord Developer Portal](https://discord.com/developers/applications)にアクセス
-2. 「New Application」をクリックして新しいアプリケーションを作成
-3. 「Bot」タブに移動し、Botを作成
-4. 「TOKEN」をコピー（後で使用します）
-5. 同じ「Bot」タブの **Privileged Gateway Intents** で **Message Content Intent** を ON にする（「類似を探す」で周辺履歴を読むために必要。User Install のみでは読めないことが多い）
-   - 有効化前に Bot を起動すると `Used disallowed intents` で落ちます。一時的に `DISCORD_MESSAGE_CONTENT_INTENT=0` でスキップ可能
-6. 「OAuth2」→「General」タブで「APPLICATION ID」をコピー
-7. 「Installation」タブで以下を設定:
-   - **Installation Contexts**: `User Install` にチェック
-   - **Install Link**: `Discord Provided Link` を選択（自分への初回インストール用）
-   - **Default Install Settings**:
-     - Scopes: `applications.commands`
-     - Permissions: 不要（User Installの場合）
-
-### 2. Cursor API Keyの取得
-
-**※この手順もどちらの実行環境でも必要です。ブラウザで実施してください。**
-
-1. [Cursor Settings](https://cursor.com/settings)にアクセス
-2. API Keyを生成してコピー
-
----
-
-## A. Grok Bot のコンピュータでの実行手順
-
-Grok Botアシスタント（例：「Discord翻訳」や他のGrok Bot）に以下のようにお願いすることで、アシスタントのLinux VM上でBotをセットアップ・起動できます。
-
-### 1. アシスタントにセットアップを依頼
-
-Grok Botとの会話で、次のようにお願いしてください：
-
-```
-https://github.com/hndrr/DiscordUserTranslateBot をあなたのコンピュータにクローンして、
-セットアップして起動してください。
-```
-
-アシスタントは以下を自動的に実行します：
-
-1. リポジトリをVM上にクローン
-2. Node.js >= 22.13.0 が利用可能か確認（必要に応じてインストール）
-3. `npm install` で依存関係をインストール
-4. 環境変数（`.env`）の設定を要求
-
-**Node.js >= 22.13.0 が必須です**（`package.json` の `engines` および `@cursor/sdk` が使う `node:sqlite`）。Node 20 では動きません。
-
-### 2. 環境変数を安全に提供
-
-アシスタントから環境変数の入力を求められたら、以下の情報を**安全な方法**で提供してください：
-
-```
-DISCORD_TOKEN=（Discord Developer Portalで取得したBotトークン）
-DISCORD_APPLICATION_ID=（あなたのApplication ID）
-CURSOR_API_KEY=（あなたのCursor APIキー）
-```
-
-⚠️ **重要**: これらのトークンやキーは、会話ログに平文で残らないよう、アシスタントが提供するセキュアな入力方法（マスク入力やVM上の環境変数設定）を使用してください。チャット画面にそのまま貼り付けないでください。
-
-### 3. コマンドのデプロイと起動
-
-アシスタントに以下を依頼してください：
-
-```
-npm run deploy を実行してDiscordコマンドを登録してください。
-その後、run-forever.sh を使ってBotをバックグラウンドで起動してください。
-```
-
-アシスタントが以下を実行します：
+## 2. インストール
 
 ```bash
-npm run deploy          # Discordコマンドを登録
-chmod +x run-forever.sh
-./run-forever.sh        # バックグラウンドで永続起動
+git clone https://github.com/hndrr/DiscordUserTranslateBot.git
+cd DiscordUserTranslateBot
+npm ci
+cp .env.example .env
 ```
 
-### 4. Bot の動作確認
+`.env` に `DISCORD_TOKEN` と `DISCORD_APPLICATION_ID` を安全に設定します。秘密情報は `.env.example` やコマンド引数、会話ログに書かないでください。
 
-1. Discord Developer PortalのInstallationタブからインストールリンクを取得
-2. 自分のDiscordアカウントにBotをインストール
-3. 任意のメッセージを右クリックして「Apps」からコマンドを選択
-   - 「Translate to English」/「Translate to Japanese」: 翻訳
-   - 「要約」: 日本語の短い要約
-   - 「返信ドラフト」: 日本語・英語の返信案
-   - 「類似を探す」: 同じ意図の周辺メッセージ一覧
-   - 「指示して実行」: モーダルに指示を入れて実行
-4. 結果が自分だけに表示されることを確認
+## 3. AI の設定（Cursor / Codex のどちらか一方）
 
-### 5. 再起動後の起動確認（ensure-running.sh）
+`.env` の `AI_PROVIDER` で使う AI を指定します。**`.env.example` は `codex` 設定です。Cursor を使う場合は `cursor` に変更してください。** `AI_PROVIDER` を省略した場合は、既存環境との互換性のため `cursor` になります。
 
-ホストVMが再起動するとBotプロセスは落ち、`node_modules` が無いこともあります。Grok Bot の「Update Computer」後は既定の Node 20 イメージに戻ることがあり、apt で入れた Node 22 も消えます。`ensure-running.sh` は未起動のときだけ起動する冪等なヘルパーです。何度呼んでも安全です。
+### Cursor SDK
+
+[Cursor Settings](https://cursor.com/settings) で API key を取得し、`.env` を次のように設定します。
+
+```env
+AI_PROVIDER=cursor
+CURSOR_API_KEY=your_cursor_api_key_here
+CURSOR_MODEL=composer-2.5
+```
+
+`CURSOR_API_KEY` は必須です。`CURSOR_MODEL` の既定値は `composer-2.5` なので、変更しなければ省略できます。Codex CLI のインストール・ログイン・`CODEX_*` の設定は不要です。
+
+設定後は **手順 4「コマンド登録と起動」** に進んでください。
+
+### Codex CLI
+
+[公式セットアップ](https://learn.chatgpt.com/docs/cli) に従って Codex CLI を用意し、`.env` を次のように設定します。Cursor API key は不要です。
+
+```env
+AI_PROVIDER=codex
+CODEX_BIN=codex
+DISCORD_CODEX_HOME=/absolute/path/to/dedicated-discord-codex-home
+CODEX_MODEL=gpt-6-luna
+CODEX_REASONING_EFFORT=low
+CODEX_TIMEOUT_MS=120000
+CODEX_MAX_CONCURRENCY=2
+```
+
+- Bot 専用 OS ユーザー／コンテナと、**新しい専用 CODEX_HOME** を推奨します。その環境でユーザー自身が通常の `codex login` を行ってください。既存の認証ファイルをコピーしないでください
+- 例: `CODEX_HOME=/absolute/path/to/dedicated-discord-codex-home codex login`。認証はサービス実行ユーザーで行い、サービスにも同じ絶対パスを設定します
+- 通常のコーディング用 Codex home は使わないでください。保存済みの指示がモデルに送られる可能性があります。`AGENTS.md`、`AGENTS.override.md`、`memories` / `memories_v2` がある home は拒否します。skill は内容を読まずに `SKILL.md` のパスを列挙し、Codex プロセスの起動時に明示的に無効化します。symlink は拒否します。skill の自動参照を避けるため、入力は JSON 文字列として渡し、ドル記号をエスケープします
+- 別案として `.env` の `CODEX_API_KEY`（または環境変数 `DISCORD_CODEX_API_KEY`）を秘密情報として設定すると、Codex プロセスの起動時に空の一時 CODEX_HOME を用意します。この場合 `CODEX_HOME` の指定や保存済みログインは不要です。API の利用料金は契約に従って発生します
+- CLI は認証情報を通常の仕組みで参照します。Bot が認証ファイルを読み出したりコピーしたりすることはありません
+- `CODEX_MODEL` 未指定時は軽量な `gpt-6-luna`、`CODEX_REASONING_EFFORT` 未指定時は `low` を明示します。利用可能なモデルはアカウントによって異なります。非対応なら利用可能なモデルを明示してください。高価なモデルへの自動フォールバックや、有料の fast/priority モードは有効化しません。ユーザーの `config.toml` のモデル設定には依存しません
+- 推論を使わない翻訳には `CODEX_REASONING_EFFORT=none` を明示できます。検証した Luna の実 API 応答では reasoning token が 0 でした。CLI の表示候補に `none` がなくても API で受理される場合があります。処理時間にはネットワークや生成時間も含まれるため、必ず速くなるという保証ではありません
+
+Bot の認証 home は `DISCORD_CODEX_HOME` で明示してください。既存の `.env` の `CODEX_HOME` も互換性のため使用できますが、ホストから継承した `CODEX_HOME` を暗黙に流用しません。Bot の `.env` にあるモデル／reasoning 設定もホストの既定より優先します。Discord token 等の他の環境変数を一括で上書きする設定ではありません。認証ファイルのコピーは不要です。[認証の公式説明](https://learn.chatgpt.com/docs/auth) も確認してください。
+
+設定後は **手順 4「コマンド登録と起動」** に進んでください。Codex を運用する際の制限は以下を確認してください。
+
+<details>
+<summary>Codex の実行方式・制限・CLI の互換性（運用者向け）</summary>
+
+Bot と Codex app-server を常駐させます。Codex プロセスは共有し、翻訳ごとに独立した ephemeral thread を作成するため、別の依頼の会話を混ぜません。
+
+- shell を介さず、入力は標準入力へ渡すため、Discord の本文をコマンド引数として実行しません
+- 一時 HOME、依頼ごとの空の作業ディレクトリ、ephemeral thread、`--strict-config`、read-only sandbox を使用
+- shell、exec、apps、plugins、hooks、browser、computer、image、multi-agent、view_image、goals、memories、shell snapshot を無効化し、web search も無効化
+- 承認を自動承認するオプションや sandbox の迂回は使用しません。`approval_policy=never` は権限昇格を許可せず、承認が必要な操作を失敗させる指定です
+- Discord／Cursor token や無関係な環境変数は子プロセスに渡しません
+- 同時実行は既定 2 件（上限 8）。満杯のときは追加要求を拒否し、無制限に待ち行列を作りません
+- 既定 120 秒で打ち切り。入力・最終出力は各 64 KiB、protocol の1行は 256 KiB まで。タイムアウトした依頼だけを中断し、他の依頼が完了してから worker を再起動します。再起動待ちの間は新しい依頼を受け付けません
+- 中断要求と終了通知を最大 1.5 秒待ちます。中断を確認できない場合は、生成を放置しないため共有プロセス全体を停止します。正常に完了した依頼はプロセス終了を待たずに結果を返します
+- SIGINT／SIGTERM で処理中の Codex を中止し、POSIX では子プロセスグループも停止します
+- CLI の生ログやプロバイダーの例外は Discord に返さず、Bot ログにも出しません
+
+**互換性と境界:** 実 CLI のツール構成は `0.159.0-alpha.7` で、ローカルの模擬プロバイダーへの要求を使って確認しました。この構成では shell/file/MCP/browser/web ツールは提示されず、`request_user_input` のみが残ります。ツール実行・承認・追加入力の要求は拒否し、プロセスを終了します。別バージョンではオプションやツール構成が変わるため、更新後は再検証してください。未対応オプションではエラーにし、制限を緩めて再試行しません。
+
+app-server は CLI の設定を読み込みます。Bot 専用の空の設定環境を使ってください。起動時と各依頼の開始時に MCP inventory が空であることを確認し、空でなければ処理を拒否します。システム／管理者配布設定の MCP 等がある環境は、この Bot 用の隔離環境として適しません。専用環境に追加の MCP・skills・hooks を設定せず、実効ツール構成を確認してから運用してください。read-only 単独は「ファイルを読めない」という意味ではなく、プロンプトの注意書きだけでは安全境界になりません。ephemeral thread も、CLI の認証・キャッシュ・診断状態まで一切保存しない保証ではありません。終了した thread は unsubscribe し、64件処理して idle になったらプロセスを再起動してメモリを制限します。
+
+</details>
+
+## 4. コマンド登録と起動
+
+```bash
+npm run deploy   # Discord の Application commands を登録／更新
+npm start
+```
+
+右クリック → Apps から操作して、結果が本人だけに表示されることを確認します。コマンド登録はリモート設定を変更するため、初回とコマンド変更時に明示的に実行してください。失敗した登録は非ゼロで終了します。
+
+## バックグラウンド／常時稼働
+
+### 稼働中の Linux ホストでの再起動付き実行
+
+```bash
+mkdir -p logs
+nohup bash run-forever.sh >> logs/bot.out 2>&1 &
+```
+
+`run-forever.sh` は Bot の終了後に 5 秒待って再起動します。Linux の `flock` が利用可能な環境では二重起動を防ぎます。`npm ci` とコマンド登録は先に完了してください。従来の起動時登録が必要な場合のみ `DEPLOY_COMMANDS=1 bash run-forever.sh` を指定できます。SIGTERM で supervisor を止めると Bot と進行中の Codex も停止します。終了を最大 15 秒待ち、応答しない子プロセスには強制終了を送って supervisor のロックを解放します。
+
+未起動時だけ起動する既存の Linux ヘルパーも使えます。
 
 ```bash
 bash ensure-running.sh
 ```
 
-- Node.js >= 22.13.0 が必須です。足りなければ公式 nodejs.org の Linux tarball（ピン留め 22.23.3）を入れます（nodesource / apt は使いません）。root またはパスワード不要の `sudo -n` なら `/usr/local`、それ以外は `~/.local`（パスワード待ちの sudo では失敗させません）
-- このリポジトリの Bot だけを対象にします。稼働中プロセスの Node（`/proc/<pid>/exe`）が条件を満たせば `ALREADY_RUNNING`、古ければ止めて入れ直して再起動します
-- 同時実行は `logs/ensure-running.lock` で直列化します
-- `.env` が無ければ `MISSING_ENV` で失敗します
-- `node_modules` が無ければ `npm install` してから `run-forever.sh` をバックグラウンド起動し、ログは `logs/bot.out` に追記します
-- 起動に失敗した場合は今回起動した wrapper とこのリポジトリの子プロセスを止めて `START_FAILED` にします（リトライで積み上がらないようにするため）
-- Discord コマンド登録（`npm run deploy`）の代わりにはなりません。`run-forever.sh` はコールドスタート時に自動で deploy します
-- Node 20 のまま翻訳を動かす回避策はありません（`@cursor/sdk` は `node:sqlite` が必要です）
+このヘルパーは Node.js が要件未満なら公式配布をインストールし、依存がなければ `npm ci` を行います。環境変更を許可できるホストでだけ実行してください。Node のインストールを避けたい場合は、あらかじめ要件を満たして `run-forever.sh` を直接実行します。Bot の起動確認と、Discord に接続済みであることは区別してください。
 
-### 6. ログの確認・再起動
+### 再起動後も復旧する Linux サーバー
 
-Botが正常に動作しているか確認したい場合や、再起動したい場合は、アシスタントに以下のようにお願いしてください：
+`deploy/discord-translate.service` は **systemd のテンプレート**です。管理者が専用 OS ユーザー、Node のパス、リポジトリのパス、環境ファイル、専用 CODEX_HOME の所有権を確認してからインストール・有効化してください。環境ファイルにはサービスに必要な秘密情報のみを安全に保存します。systemd と `run-forever.sh` を同時に使わず、supervisor は一つにします。
 
-```
-Discord翻訳Botのログを確認してください
-```
+**dot などの一時的なクラウド作業環境では、バックグラウンド化しても 24 時間稼働は保証されません。** ホストの停止・再作成・ネットワーク終了で Bot も止まります。このリポジトリのスクリプトはホスト自体を維持できません。常時運用には継続稼働が保証されたサーバーと、再起動時に復旧する仕組みが必要です。
 
-```
-Discord翻訳Botを再起動してください
-```
+## Interaction の初回応答と診断
 
-アシスタントがVM上でプロセスの状態確認やログ表示、再起動を実行します。
+Discord の初回応答には 3 秒の期限があります。初回応答・通常の REST 通信・接続維持の確認には、それぞれ別のプロキシ対応接続プールを使います。Gateway 接続前に公開の `/gateway` で初回応答用の接続を準備します。稼働中は 15 秒間隔で予備の接続を確認し、完了してから初回応答用に切り替えます。履歴取得や接続確認が遅れても、その通信の後ろに初回応答を並べません。接続確認に Bot token やメッセージ本文は送信しません。
 
----
+ネットワーク切断等で再接続が必要になれば、期限に間に合わない可能性は残ります。初回応答に失敗した場合は AI 実行や再返信をせず、Bot をクラッシュさせません。終了時には接続確認のタイマーとすべての接続プールを破棄します。
 
-## B. ローカルPCでの実行手順
+ローカル診断ログには command 名、interaction の種別、受付・初回応答・完了の時刻差、固定の失敗分類のみを記録します。本文・interaction token・ID・生の Discord 例外は記録しません。モーダルも表示を先に行い、任意の履歴取得で初回応答を遅らせません。
 
-### 1. プロジェクトのセットアップ
+## 開発・検証
 
 ```bash
-# リポジトリをクローン
-git clone https://github.com/hndrr/DiscordUserTranslateBot.git
-cd DiscordUserTranslateBot
-
-# 依存関係のインストール
-npm install
-
-# 環境変数の設定
-cp .env.example .env
+npm test       # Codex の起動・制限・失敗・終了処理を偽 CLI で検証
+npm run check  # TypeScript 型チェック
+npm run build
+bash -n run-forever.sh ensure-running.sh
 ```
 
-### 2. 環境変数の設定
-
-`.env`ファイルを編集して、以下の値を設定します：
-
-```env
-DISCORD_TOKEN=あなたのDiscord Botトークン
-DISCORD_APPLICATION_ID=あなたのApplication ID
-CURSOR_API_KEY=あなたのCursor APIキー
-```
-
-### 3. コマンドのデプロイ
-
-```bash
-npm run deploy
-```
-
-### 4. Botの起動
-
-```bash
-# 通常起動
-npm start
-
-# 開発モード（ホットリロード）
-npm run dev
-
-# 永続実行（再起動機能付き）
-chmod +x run-forever.sh
-./run-forever.sh
-```
-
-### 5. Bot の動作確認
-
-1. Discord Developer PortalのInstallationタブからインストールリンクを取得
-2. 自分のDiscordアカウントにBotをインストール
-3. 任意のメッセージを右クリック
-4. 「Apps」から「Translate to English」「Translate to Japanese」「要約」「返信ドラフト」「類似を探す」「指示して実行」のいずれかを選択
-5. 結果が自分だけに表示されます
-
----
-
-## 任意（個人利用でアプリを非公開にしたい場合）
-
-初回セットアップでは不要です。自分用にアプリを非公開にしたいときだけ実施してください。
-
-1. Installation → **Install Link** を **None（設定しない）** にする
-2. そのあと Bot タブの **Public Bot** を OFF にする
-
-Install Link が残ったままだと非公開にできず、Portal でエラーになります（private apps cannot have a default authorization / install link。verified apps は公開必須）。既に User Install 済みなら、非公開後もそのまま使えます（トークン再発行・アプリ削除・認可取り消しがない限り）。
-
----
-
-## 使い方
-
-インストール後は、どちらの実行環境でも以下の手順で利用できます：
-
-1. Discord上の任意のメッセージを右クリック
-2. 「Apps」から使いたいメニューを選択
-   - **Translate to English** / **Translate to Japanese** — 翻訳
-   - **要約** — 選択メッセージの短い日本語要約（スレッド／返信なら前後の文脈も参照）
-   - **返信ドラフト** — そのメッセージへの返信案。日本語と英語の対訳を表示
-   - **類似を探す** — チャンネル／スレッドの周辺メッセージ（最大約100件）から同じ意図の投稿を探し、作者・短い抜粋・ジャンプリンクを ephemeral で一覧表示（**Message Content Intent** とサーバー招待があると安定）。履歴が取れないときは選択メッセージ内の関連整理にフォールバック
-   - **指示して実行** — まずモーダルが開き、自由な指示（例: 似た質問探して / 丁寧に言い換えて / 論点だけ3つ）を入力。送信後に対象メッセージと文脈を踏まえて実行し、結果を ephemeral で返す（2000文字まで）
-3. 結果は自分だけに表示されます（他のユーザーには見えません）
-
-## プロジェクト構造
-
-```
-.
-├── src/
-│   ├── index.ts           # Botのメインファイル
-│   ├── commands.ts        # コンテキストメニュー名
-│   ├── deploy-commands.ts # コマンド登録スクリプト
-│   ├── message-content.ts # 本文抽出・スレッド／返信の文脈収集
-│   └── translator.ts      # Cursor SDK（翻訳・要約・返信ドラフト）
-├── package.json           # 依存関係とスクリプト
-├── tsconfig.json          # TypeScript設定
-├── .env.example           # 環境変数テンプレート
-├── run-forever.sh         # 永続実行スクリプト
-├── ensure-running.sh      # 未起動なら起動する冪等ヘルパー（VM再起動後向け）
-└── README.md              # このファイル
-```
-
-## 技術スタック
-
-- **Discord.js v14**: Discord API インタラクション
-- **Cursor SDK**: AI翻訳・要約・返信ドラフト・類似検索・指示実行（Composer 2.5モデル）
-- **TypeScript**: 型安全な開発
-- **tsx**: TypeScript実行環境
+テストは実際の Discord 接続・投稿・AI 推論・認証情報を必要としません。ローカルの HTTP サーバーで初回応答と他の通信の分離を、模擬 RPC で会話の分離・タイムアウト時の並行処理・終了処理を検証します。実際の Codex 認証／モデル応答と Discord のエンドツーエンド動作確認は、専用環境で別途行ってください。
 
 ## トラブルシューティング
 
-### Botが起動しない
+- **REST は通るのに接続待ちになる:** Gateway は WebSocket を使います。ホストの既存の `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`（小文字も対応）を設定している場合、Bot は `proxy-agent` でその設定を Gateway にも適用します。`NO_PROXY` を尊重し、別の経路や宛先へ迂回しません。プロキシ URL に秘密情報が含まれる場合はログや Git に残さないでください
 
-- `.env`ファイルが正しく設定されているか確認
-- `DISCORD_TOKEN`と`DISCORD_APPLICATION_ID`が正しいか確認
-- Node.jsのバージョンが22.13以上か確認
+- **起動しない:** Node のバージョン、`DISCORD_TOKEN`、選択した provider の設定を確認
+- **Codex が失敗:** `CODEX_BIN`、対応 CLI、専用 CODEX_HOME、サービス実行ユーザーでのログイン、利用可能モデルと制限を確認。CLI を安全で合成的なテキストで試し、秘密情報をログに貼らないでください
+- **コマンドが見えない:** `npm run deploy`、Application ID、User Install を確認
+- **周辺履歴が読めない:** User Install だけでは取得できない場合があります。対象サーバーへの Bot 参加と権限を確認。取得できない場合はメッセージ内の関連整理に切り替わります
+- **モーダルの文脈が期限切れ:** 右クリックメニューから開き直してください
+- **自分用アプリを非公開にしたい:** Installation の Install Link を None にしてから Public Bot を OFF。初回セットアップには不要です
 
-### コマンドが表示されない
+## セキュリティ
 
-- `npm run deploy`を実行してコマンドを再デプロイ
-- Discordを再起動
-- BotがUser Installとして正しくインストールされているか確認
+Cursor / Codex のどちらを使う場合も、選択メッセージ・作者名・取得した文脈・モーダルの指示は、選んだ AI プロバイダーへ送信されます。利用できる人、送信する情報、利用料金を確認してから有効化してください。Cursor は `tools: []`、Codex は上記の制限を使い、文章生成のみを行います。
 
-### 翻訳が動作しない
-
-- `CURSOR_API_KEY`が正しく設定されているか確認
-- Cursor APIの利用可能クレジットがあるか確認
-- コンソールログでエラーメッセージを確認
-
-### 「類似を探す」で履歴が読めない / 候補が空
-
-User Install だけではチャンネル履歴を REST / Gateway から取得できないことが多くあります。その場合もハードエラーにせず、選択メッセージ（と取れた返信文脈）内の関連整理にフォールバックします。投稿横断の類似検索には次が有効です。
-
-- Discord Developer Portal → Bot → **Message Content Intent** を ON
-- 可能なら Bot を対象サーバーにも入れる（Guild メンバーシップがあると履歴取得が改善しやすい）
-
-### 「指示して実行」で Missing Access
-
-モーダル表示時にメッセージ文脈をキャッシュするため、再取得は不要です。古いデプロイで `Missing Access` が出る場合は最新版に更新し、メニューから開き直してください。
-
-## セキュリティに関する注意
-
-- `.env`ファイルは Git にコミットしないでください
-- トークンや API キーは共有しないでください。漏れたら Discord Developer Portal / Cursor で再発行してください
+`.env`、ログ、認証情報を Git に追加しないでください。漏えい時は該当サービスで無効化・再発行してください。Bot token は Discord Application のものだけを使用してください。
 
 ## ライセンス
 
 MIT
-
-## サポート
-
-問題が発生した場合は、GitHubのIssuesで報告してください。
