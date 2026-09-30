@@ -1,20 +1,6 @@
-import { Agent } from '@cursor/sdk';
-import { config } from 'dotenv';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { runAgentPrompt } from './agent-provider.js';
 import type { ContextLine } from './message-content.js';
 import { messageJumpUrl } from './message-content.js';
-
-config();
-
-const apiKey = process.env.CURSOR_API_KEY;
-if (!apiKey) {
-  console.error('❌ CURSOR_API_KEY is not set in .env file');
-  process.exit(1);
-}
-
-const cwd = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const modelId = process.env.CURSOR_MODEL || 'composer-2.5';
 
 export type BilingualDraft = {
   japanese: string;
@@ -32,29 +18,6 @@ function clipSource(text: string, max = 4000): string {
   const trimmed = text.trim();
   if (trimmed.length <= max) return trimmed;
   return trimmed.slice(0, max) + '…';
-}
-
-async function runAgentPrompt(prompt: string, errorLabel: string): Promise<string> {
-  try {
-    const result = await Agent.prompt(prompt, {
-      apiKey,
-      model: { id: modelId },
-      local: { cwd },
-      // Empty allowlist: Discord-controlled prompts cannot invoke shell/read/write.
-      tools: [],
-    });
-
-    if (result.status !== 'finished') {
-      throw new Error(`${errorLabel} agent did not finish: ${result.status}`);
-    }
-
-    const out = String(result.result ?? '').trim();
-    if (!out) throw new Error(`${errorLabel} result was empty`);
-    return out;
-  } catch (error) {
-    console.error('Cursor SDK error:', error);
-    throw new Error(`${errorLabel} failed`);
-  }
 }
 
 export async function translateMessage(text: string, targetLanguage: string): Promise<string> {
