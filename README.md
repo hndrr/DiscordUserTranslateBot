@@ -114,7 +114,7 @@ mkdir -p logs
 nohup bash run-forever.sh >> logs/bot.out 2>&1 &
 ```
 
-`run-forever.sh` は Bot の終了後に 5 秒待って再起動します。Linux の `flock` が利用可能な環境では二重起動を防ぎます。`npm ci` とコマンド登録は先に完了してください。従来の起動時登録が必要な場合のみ `DEPLOY_COMMANDS=1 bash run-forever.sh` を指定できます。SIGTERM で supervisor を止めると Bot と進行中の Codex も停止します。
+`run-forever.sh` は Bot の終了後に 5 秒待って再起動します。Linux の `flock` が利用可能な環境では二重起動を防ぎます。`npm ci` とコマンド登録は先に完了してください。従来の起動時登録が必要な場合のみ `DEPLOY_COMMANDS=1 bash run-forever.sh` を指定できます。SIGTERM で supervisor を止めると Bot と進行中の Codex も停止します。終了を最大 15 秒待ち、応答しない子プロセスには強制終了を送って supervisor のロックを解放します。
 
 未起動時だけ起動する既存の Linux ヘルパーも使えます。
 
@@ -142,6 +142,8 @@ bash -n run-forever.sh ensure-running.sh
 テストは実際の Discord 接続・投稿・AI 推論・認証情報を必要としません。実際の Codex 認証／モデル応答と Discord のエンドツーエンド動作確認は、専用環境で別途行ってください。
 
 ## トラブルシューティング
+
+- **REST は通るのに接続待ちになる:** Gateway は WebSocket を使います。ホストの既存の `HTTPS_PROXY` / `HTTP_PROXY` / `ALL_PROXY`（小文字も対応）を設定している場合、Bot は `proxy-agent` でその設定を Gateway にも適用します。`NO_PROXY` を尊重し、別の経路や宛先へ迂回しません。プロキシ URL に秘密情報が含まれる場合はログや Git に残さないでください
 
 - **起動しない:** Node のバージョン、`DISCORD_TOKEN`、選択した provider の設定を確認
 - **Codex が失敗:** `CODEX_BIN`、対応 CLI、専用 CODEX_HOME、サービス実行ユーザーでのログイン、利用可能モデルと制限を確認。CLI を安全で合成的なテキストで試し、秘密情報をログに貼らないでください

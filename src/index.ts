@@ -9,6 +9,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { config } from 'dotenv';
+import { configureDiscordProxy } from './discord-proxy.js';
 import { stopAgentRequests, validateAgentConfiguration } from './agent-provider.js';
 import {
   COMMAND_NAMES,
@@ -33,6 +34,7 @@ import {
 config();
 
 validateAgentConfiguration();
+configureDiscordProxy();
 
 const DISCORD_LIMIT = 2000;
 

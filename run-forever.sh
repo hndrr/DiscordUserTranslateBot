@@ -28,8 +28,20 @@ child=""
 stopping=0
 stop() {
     stopping=1
+    # Repeated stop signals must not restart or interrupt the shutdown deadline.
+    trap '' INT TERM
     if [ -n "$child" ]; then
         kill -TERM "$child" 2>/dev/null || true
+        for _ in {1..15}; do
+            if ! kill -0 "$child" 2>/dev/null; then
+                break
+            fi
+            sleep 1
+        done
+        if kill -0 "$child" 2>/dev/null; then
+            echo "Bot did not stop within 15 seconds; forcing shutdown."
+            kill -KILL "$child" 2>/dev/null || true
+        fi
         wait "$child" 2>/dev/null || true
     fi
     exit 0
