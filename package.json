@@ -1,22 +1,25 @@
 {
   "name": "discord-user-translate-bot",
   "version": "1.0.0",
-  "description": "Discord User-Install Translation Bot using Cursor SDK",
+  "description": "Discord User-Install Translation Bot using Codex CLI or Cursor SDK",
   "type": "module",
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
-    "start": "tsx src/index.ts",
+    "start": "node --import tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
-    "deploy": "tsx src/deploy-commands.ts",
-    "build": "tsc"
+    "deploy": "node --import tsx src/deploy-commands.ts",
+    "build": "tsc",
+    "test": "node --import tsx --test test/*.test.ts",
+    "check": "tsc --noEmit"
   },
   "keywords": [
     "discord",
     "translation",
     "cursor",
-    "user-install"
+    "user-install",
+    "codex"
   ],
   "author": "",
   "license": "MIT",

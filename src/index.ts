@@ -9,6 +9,7 @@ import {
   TextInputStyle,
 } from 'discord.js';
 import { config } from 'dotenv';
+import { stopAgentRequests, validateAgentConfiguration } from './agent-provider.js';
 import {
   COMMAND_NAMES,
   INSTRUCTION_INPUT_ID,
@@ -30,6 +31,8 @@ import {
 } from './translator.js';
 
 config();
+
+validateAgentConfiguration();
 
 const DISCORD_LIMIT = 2000;
 
@@ -472,4 +475,21 @@ if (!token) {
   process.exit(1);
 }
 
-client.login(token);
+let shuttingDown = false;
+function shutdown(): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  stopAgentRequests();
+  void client.destroy().catch(() => {
+    console.error('Discord connection cleanup failed');
+    process.exitCode = 1;
+  });
+}
+process.once('SIGINT', shutdown);
+process.once('SIGTERM', shutdown);
+
+client.login(token).catch(() => {
+  console.error('Discord login failed; check Bot token, intents and network access');
+  shutdown();
+  process.exitCode = 1;
+});

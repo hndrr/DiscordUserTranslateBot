@@ -65,6 +65,7 @@ const rest = new REST({ version: '10' }).setToken(token);
     console.log('📱 Commands are available as User-Install context menus');
     console.log(Object.values(COMMAND_NAMES).map((name) => `  - ${name}`).join('\n'));
   } catch (error) {
-    console.error('❌ Error deploying commands:', error);
+    console.error('❌ Error deploying commands; check token, application ID and network access');
+    process.exitCode = 1;
   }
 })();

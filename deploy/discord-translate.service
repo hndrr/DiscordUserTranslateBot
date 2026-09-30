@@ -1,0 +1,21 @@
+# Linux systemd example. Review paths/user before installing; never commit credentials.
+[Unit]
+Description=Discord User-Install Translation Bot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=discord-translate
+WorkingDirectory=/opt/DiscordUserTranslateBot
+EnvironmentFile=/etc/discord-translate.env
+# Adjust the absolute Node path for your installation (Node >=22.13).
+ExecStart=/usr/bin/node --import tsx src/index.ts
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+KillMode=control-group
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
