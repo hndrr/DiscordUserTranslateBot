@@ -120,47 +120,13 @@ async function walkReplyChain(
   }
 }
 
-function formatContext(seen: Map<string, ContextLine>, targetId: string, maxChars = MAX_CONTEXT_CHARS): string {
-  const lines = [...seen.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
-  if (lines.length === 0) return '';
-
-  const formatted = lines.map((line) => {
-    const tag = line.isTarget ? '[対象] ' : '';
-    return `${tag}${line.author}: ${line.content}`;
-  });
-
-  const joined = formatted.join('\n\n');
-  if (joined.length <= maxChars) return joined;
-
-  const targetIndex = Math.max(0, lines.findIndex((line) => line.id === targetId));
-  const include = new Set<number>();
-  let total = 0;
-  const order: number[] = [targetIndex];
-  for (let distance = 1; distance < lines.length; distance++) {
-    if (targetIndex - distance >= 0) order.push(targetIndex - distance);
-    if (targetIndex + distance < lines.length) order.push(targetIndex + distance);
-  }
-
-  for (const idx of order) {
-    const text = formatted[idx];
-    const extra = text.length + (include.size ? 2 : 0);
-    if (total + extra > maxChars && include.size > 0) continue;
-    include.add(idx);
-    total += extra;
-  }
-
-  return [...include]
-    .sort((a, b) => a - b)
-    .map((i) => formatted[i])
-    .join('\n\n');
+function formatContextLine(line: ContextLine): string {
+  return `${line.isTarget ? '[対象] ' : ''}${line.author}: ${line.content}`;
 }
 
 function trimLinesToCharBudget(lines: ContextLine[], targetId: string, maxChars: number): ContextLine[] {
   if (lines.length === 0) return lines;
-  const formattedLens = lines.map((line) => {
-    const tag = line.isTarget ? '[対象] ' : '';
-    return `${tag}${line.author}: ${line.content}`.length;
-  });
+  const formattedLens = lines.map((line) => formatContextLine(line).length);
   const total = formattedLens.reduce((a, b) => a + b, 0) + Math.max(0, lines.length - 1) * 2;
   if (total <= maxChars) return lines;
 
@@ -185,15 +151,12 @@ export async function collectMessageContext(message: Message): Promise<{
   targetText: string;
   contextText: string;
   authorName: string;
-  usedNearby: boolean;
 }> {
   const targetText = extractMessageText(message);
   const authorName = displayAuthor(message);
   const seen = new Map<string, ContextLine>();
   const targetLine = toLine(message, message.id);
   if (targetLine) seen.set(targetLine.id, targetLine);
-
-  let usedNearby = false;
 
   if (needsNearbyContext(message)) {
     await walkReplyChain(message, message.id, seen);
@@ -209,7 +172,6 @@ export async function collectMessageContext(message: Message): Promise<{
           const line = toLine(nearby, message.id);
           if (line) seen.set(line.id, line);
         }
-        if (fetched.size > 1) usedNearby = true;
       }
     } catch (error) {
       console.warn('Could not fetch nearby messages:', classifyInteractionFailure(error));
@@ -224,18 +186,18 @@ export async function collectMessageContext(message: Message): Promise<{
           const line = toLine(nearby, message.id);
           if (line) seen.set(line.id, line);
         }
-        if (threadMsgs.size > 0) usedNearby = true;
       }
     } catch (error) {
       console.warn('Could not fetch thread messages:', classifyInteractionFailure(error));
     }
   }
 
+  const sorted = [...seen.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
   return {
     targetText,
-    contextText: formatContext(seen, message.id),
+    contextText: trimLinesToCharBudget(sorted, message.id, MAX_CONTEXT_CHARS)
+      .map(formatContextLine).join('\n\n'),
     authorName,
-    usedNearby: usedNearby || seen.size > 1,
   };
 }
 
@@ -247,8 +209,6 @@ export async function collectNearbyMessages(message: Message): Promise<{
   targetText: string;
   authorName: string;
   lines: ContextLine[];
-  usedNearby: boolean;
-  fetchFailed: boolean;
   /** True when history could not be read beyond the target (User-Install / missing intents). */
   historyUnavailable: boolean;
 }> {
@@ -258,16 +218,14 @@ export async function collectNearbyMessages(message: Message): Promise<{
   const targetLine = toLine(message, message.id);
   if (targetLine) seen.set(targetLine.id, targetLine);
 
-  let usedNearby = false;
-  let fetchFailed = false;
-
   await walkReplyChain(message, message.id, seen);
 
   const channel = message.channel;
   if (channel && 'messages' in channel) {
+    const messages = channel.messages;
     // Merge anything already in the channel cache (gateway may have partial history).
     try {
-      for (const cached of channel.messages.cache.values()) {
+      for (const cached of messages.cache.values()) {
         const line = toLine(cached, message.id);
         if (line) seen.set(line.id, line);
       }
@@ -275,66 +233,30 @@ export async function collectNearbyMessages(message: Message): Promise<{
       // ignore cache walk issues
     }
 
-    let aroundSize = 0;
-    let beforeSize = 0;
-    let afterSize = 0;
-
-    try {
-      const fetched = await channel.messages.fetch({
-        limit: MAX_NEARBY_MESSAGES,
-        around: message.id,
-      });
-      aroundSize = fetched.size;
-      for (const nearby of fetched.values()) {
-        const line = toLine(nearby, message.id);
-        if (line) seen.set(line.id, line);
+    async function fetchNearby(position: 'around' | 'before' | 'after', limit: number): Promise<number> {
+      try {
+        const fetched = await messages.fetch({ limit, [position]: message.id });
+        for (const nearby of fetched.values()) {
+          const line = toLine(nearby, message.id);
+          if (line) seen.set(line.id, line);
+        }
+        return fetched.size;
+      } catch (error) {
+        console.warn(`Could not fetch nearby messages for similar search (${position}):`, classifyInteractionFailure(error));
+        return 0;
       }
-      if (fetched.size > 1) usedNearby = true;
-    } catch (error) {
-      console.warn('Could not fetch nearby messages for similar search (around):', classifyInteractionFailure(error));
-      fetchFailed = true;
     }
 
     // User-Install / missing Message Content often returns only the target (or empty) without throwing.
+    const aroundSize = await fetchNearby('around', MAX_NEARBY_MESSAGES);
     if (aroundSize <= 1) {
-      try {
-        const before = await channel.messages.fetch({
-          limit: 50,
-          before: message.id,
-        });
-        beforeSize = before.size;
-        for (const nearby of before.values()) {
-          const line = toLine(nearby, message.id);
-          if (line) seen.set(line.id, line);
-        }
-        if (before.size > 0) usedNearby = true;
-      } catch (error) {
-        console.warn('Could not fetch nearby messages for similar search (before):', classifyInteractionFailure(error));
-        fetchFailed = true;
-      }
-
-      try {
-        const after = await channel.messages.fetch({
-          limit: 50,
-          after: message.id,
-        });
-        afterSize = after.size;
-        for (const nearby of after.values()) {
-          const line = toLine(nearby, message.id);
-          if (line) seen.set(line.id, line);
-        }
-        if (after.size > 0) usedNearby = true;
-      } catch (error) {
-        console.warn('Could not fetch nearby messages for similar search (after):', classifyInteractionFailure(error));
-        fetchFailed = true;
-      }
+      const beforeSize = await fetchNearby('before', 50);
+      const afterSize = await fetchNearby('after', 50);
 
       console.warn(
         `collectNearbyMessages: around=${aroundSize} before=${beforeSize} after=${afterSize} seen=${seen.size} (target=${message.id})`,
       );
     }
-  } else {
-    fetchFailed = true;
   }
 
   try {
@@ -346,29 +268,17 @@ export async function collectNearbyMessages(message: Message): Promise<{
         const line = toLine(nearby, message.id);
         if (line) seen.set(line.id, line);
       }
-      if (threadMsgs.size > 0) usedNearby = true;
     }
   } catch (error) {
     console.warn('Could not fetch thread messages for similar search:', classifyInteractionFailure(error));
-    fetchFailed = true;
   }
 
   const sorted = [...seen.values()].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
   const lines = trimLinesToCharBudget(sorted, message.id, MAX_NEARBY_CHARS);
-  const candidatesBeyondTarget = lines.filter((l) => !l.isTarget).length;
-  const historyUnavailable = candidatesBeyondTarget === 0;
-
-  if (historyUnavailable && !fetchFailed) {
-    // Silent empty history under User-Install — treat like a fetch failure for UX.
-    fetchFailed = true;
-  }
-
   return {
     targetText,
     authorName,
     lines,
-    usedNearby: usedNearby || lines.length > 1,
-    fetchFailed: fetchFailed && historyUnavailable,
-    historyUnavailable,
+    historyUnavailable: !lines.some((line) => !line.isTarget),
   };
 }

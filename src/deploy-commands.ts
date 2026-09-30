@@ -4,44 +4,12 @@ import { COMMAND_NAMES } from './commands.js';
 
 config();
 
-const commands = [
-  {
-    name: COMMAND_NAMES.TRANSLATE_EN,
-    type: ApplicationCommandType.Message,
-    integration_types: [0, 1],
-    contexts: [0, 1, 2],
-  },
-  {
-    name: COMMAND_NAMES.TRANSLATE_JA,
-    type: ApplicationCommandType.Message,
-    integration_types: [0, 1],
-    contexts: [0, 1, 2],
-  },
-  {
-    name: COMMAND_NAMES.SUMMARIZE,
-    type: ApplicationCommandType.Message,
-    integration_types: [0, 1],
-    contexts: [0, 1, 2],
-  },
-  {
-    name: COMMAND_NAMES.DRAFT_REPLY,
-    type: ApplicationCommandType.Message,
-    integration_types: [0, 1],
-    contexts: [0, 1, 2],
-  },
-  {
-    name: COMMAND_NAMES.FIND_SIMILAR,
-    type: ApplicationCommandType.Message,
-    integration_types: [0, 1],
-    contexts: [0, 1, 2],
-  },
-  {
-    name: COMMAND_NAMES.RUN_INSTRUCTION,
-    type: ApplicationCommandType.Message,
-    integration_types: [0, 1],
-    contexts: [0, 1, 2],
-  },
-];
+const commands = Object.values(COMMAND_NAMES).map((name) => ({
+  name,
+  type: ApplicationCommandType.Message,
+  integration_types: [0, 1],
+  contexts: [0, 1, 2],
+}));
 
 const token = process.env.DISCORD_TOKEN;
 const applicationId = process.env.DISCORD_APPLICATION_ID;

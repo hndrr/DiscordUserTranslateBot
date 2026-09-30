@@ -49,10 +49,6 @@ type InstructionModalContext = {
   targetText: string;
   contextText: string;
   authorName: string;
-  guildId: string | null;
-  channelId: string;
-  messageId: string;
-  userId: string;
   expiresAt: number;
 };
 
@@ -79,13 +75,8 @@ function storeInstructionModalContext(
 function takeInstructionModalContext(customId: string): InstructionModalContext | null {
   pruneExpiredModalContexts();
   const ctx = instructionModalContext.get(customId);
-  if (!ctx) return null;
-  if (ctx.expiresAt <= Date.now()) {
-    instructionModalContext.delete(customId);
-    return null;
-  }
   instructionModalContext.delete(customId);
-  return ctx;
+  return ctx ?? null;
 }
 
 const intents = [
@@ -304,8 +295,7 @@ async function handleFindSimilar(interaction: MessageContextMenuCommandInteracti
     return;
   }
 
-  const candidates = lines.filter((l) => !l.isTarget);
-  if (historyUnavailable || candidates.length === 0) {
+  if (historyUnavailable) {
     // User-Install often cannot fetch channel history — fall back like 「指示して実行」
     // on the single selected message (+ reply-chain context when available).
     const { targetText: ctxTarget, contextText, authorName: ctxAuthor } =
@@ -368,10 +358,6 @@ async function handleRunInstructionMenu(
     targetText,
     contextText: `[対象] ${authorName}: ${targetText}`,
     authorName,
-    guildId: message.guildId,
-    channelId: message.channelId,
-    messageId: message.id,
-    userId: interaction.user.id,
   };
   storeInstructionModalContext(customId, initialContext);
   const cachedContext = instructionModalContext.get(customId);
