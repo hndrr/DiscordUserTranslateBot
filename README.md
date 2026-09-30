@@ -51,20 +51,21 @@ cp .env.example .env
 ```env
 AI_PROVIDER=codex
 CODEX_BIN=codex
-CODEX_HOME=/absolute/path/to/dedicated-discord-codex-home
+DISCORD_CODEX_HOME=/absolute/path/to/dedicated-discord-codex-home
+CODEX_MODEL=gpt-6-luna
+CODEX_REASONING_EFFORT=low
 CODEX_TIMEOUT_MS=120000
 CODEX_MAX_CONCURRENCY=2
-# CODEX_MODEL=利用可能なモデル名
 ```
 
 - Bot 専用 OS ユーザー／コンテナと、**新しい専用 CODEX_HOME** を推奨します。その環境でユーザー自身が通常の `codex login` を行ってください。既存の認証ファイルをコピーしないでください
 - 例: `CODEX_HOME=/absolute/path/to/dedicated-discord-codex-home codex login`。認証はサービス実行ユーザーで行い、サービスにも同じ絶対パスを設定します
-- 通常のコーディング用 Codex home は使わないでください。保存済みの指示や skill 情報がモデルに送られる可能性があります。`AGENTS.md`、`AGENTS.override.md`、独自の `skills`、`memories` / `memories_v2` がある home は拒否します。CLI が生成する組み込み `skills/.system` は許可します
-- 別案として `CODEX_API_KEY` を秘密情報として設定すると、リクエストごとに空の一時 CODEX_HOME を使います。この場合 `CODEX_HOME` の指定や保存済みログインは不要です。API の利用料金は契約に従って発生します
+- 通常のコーディング用 Codex home は使わないでください。保存済みの指示がモデルに送られる可能性があります。`AGENTS.md`、`AGENTS.override.md`、`memories` / `memories_v2` がある home は拒否します。skill は内容を読まずに `SKILL.md` のパスを列挙し、リクエストごとに明示的に無効化します。symlink は拒否します。skill の自動参照を避けるため、入力は JSON 文字列として渡し、ドル記号をエスケープします
+- 別案として `.env` の `CODEX_API_KEY`（または環境変数 `DISCORD_CODEX_API_KEY`）を秘密情報として設定すると、リクエストごとに空の一時 CODEX_HOME を使います。この場合 `CODEX_HOME` の指定や保存済みログインは不要です。API の利用料金は契約に従って発生します
 - CLI は認証情報を通常の仕組みで参照します。Bot が認証ファイルを読み出したりコピーしたりすることはありません
-- `CODEX_MODEL` 未指定なら CLI の既定モデルを使います。ユーザーの `config.toml` は読み込まないため、そこに設定したモデル指定には依存しません
+- `CODEX_MODEL` 未指定時は軽量な `gpt-6-luna`、`CODEX_REASONING_EFFORT` 未指定時は `low` を明示します。利用可能なモデルはアカウントによって異なります。非対応なら利用可能なモデルを明示してください。高価なモデルへの自動フォールバックや、有料の fast/priority モードは有効化しません。ユーザーの `config.toml` のモデル設定には依存しません
 
-既存のログインを共有するために、このアシスタントの認証ファイルを取り出す操作は不要です。[認証の公式説明](https://learn.chatgpt.com/docs/auth) も確認してください。
+Bot の認証 home は `DISCORD_CODEX_HOME` で明示してください。既存の `.env` の `CODEX_HOME` も互換性のため使用できますが、ホストから継承した `CODEX_HOME` を暗黙に流用しません。Bot の `.env` にあるモデル／reasoning 設定もホストの既定より優先します。Discord token 等の他の環境変数を一括で上書きする設定ではありません。認証ファイルのコピーは不要です。[認証の公式説明](https://learn.chatgpt.com/docs/auth) も確認してください。
 
 #### Codex の実行と制限
 
