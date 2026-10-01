@@ -10,6 +10,7 @@
     "start": "node --import tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "deploy": "node --import tsx src/deploy-commands.ts",
+    "preflight": "node --import tsx src/preflight.ts",
     "build": "tsc",
     "test": "node --import tsx --test test/*.test.ts",
     "check": "tsc --noEmit"
