@@ -176,6 +176,7 @@ class RecoveryWindow(Gtk.Window):
         except RecoveryError as error:
             messages = {
                 "Wrong recovery passphrase or damaged backup. Nothing was restored.": "パスワードが違うか、バックアップが破損しています。復元は行われていません。",
+                "Wrong recovery passphrase or damaged snapshot. Nothing was restored.": "パスワードが違うか、バックアップが破損しています。復元は行われていません。",
                 "Destination already exists. Choose a new name; existing data is never overwritten.": "保存先はすでに存在します。上書きせず、新しい保存先を選んでください。",
                 "Use a recovery passphrase of 16 to 1024 characters.": "復旧用パスワードは16〜1024文字で入力してください。",
             }
