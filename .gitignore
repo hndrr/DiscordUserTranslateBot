@@ -16,3 +16,20 @@ yarn-error.log*
 logs/
 .env.*
 !.env.example
+
+# Recovery helper runtime material must never be committed.
+__pycache__/
+*.py[cod]
+.venv-recovery/
+recovery-state/
+restored-config/
+setup-plan.json
+create-response.json
+*.encrypted.json
+auth.json
+recipient.json
+watcher-config.json
+bridge-state.json
+upload-receipt.json
+pending-upload.json
+tools/recovery/dummy-demo/

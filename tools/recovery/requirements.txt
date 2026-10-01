@@ -1,0 +1,2 @@
+# GTK 3 / PyGObject are OS dependencies; see README.md.
+cryptography>=43

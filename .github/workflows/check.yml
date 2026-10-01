@@ -19,3 +19,15 @@ jobs:
       - run: npm run check
       - run: npm run build
       - run: bash -n run-forever.sh ensure-running.sh
+  recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux GUI bindings and Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-gi gir1.2-gtk-3.0
+          /usr/bin/python3 -m venv --system-site-packages .venv-recovery
+          .venv-recovery/bin/python -m pip install -r tools/recovery/requirements.txt
+      - name: Test recovery with synthetic credentials only
+        run: .venv-recovery/bin/python -m unittest discover -s tools/recovery -p 'test_*.py' -v

@@ -1,0 +1,10 @@
+{
+  "format": "discord-autobackup-setup-plan",
+  "version": 1,
+  "env_path": "/absolute/path/to/bot.env",
+  "auth_path": "/absolute/path/to/dedicated-codex-home/auth.json",
+  "existing_backup_path": null,
+  "destination_root": "/absolute/path/to/private/recovery-state",
+  "library_file_id": null,
+  "library_version": null
+}
