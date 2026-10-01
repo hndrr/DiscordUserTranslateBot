@@ -180,8 +180,11 @@ def _watch_loop(root,interval=5.0):
   except (r.RecoveryError,OSError,ValueError,subprocess.SubprocessError):
    candidate=None;status='snapshot_blocked'
   if status!=last_status:
-   atomic_json(root,'health.json',{'status':status,'updated_at':utc_now()})
-   print(status,flush=True);last_status=status
+   try:atomic_json(root,'health.json',{'status':status,'updated_at':utc_now()})
+   except (r.RecoveryError,OSError):
+    # Keep monitoring and retry publication on a following poll.
+    pass
+   else:print(status,flush=True);last_status=status
   time.sleep(interval)
 
 

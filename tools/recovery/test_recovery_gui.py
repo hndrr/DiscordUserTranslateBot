@@ -73,6 +73,21 @@ class ValidationTests(unittest.TestCase):
         self.assertFalse(fields['button'].sensitive)
         self.assertNotIn('not shown',window.status.text)
 
+    def test_wrong_v2_and_v3_restore_passwords_use_japanese_and_clear_input(self):
+        for version in ('backup', 'snapshot'):
+            with self.subTest(version=version):
+                window,fields=self.window(TEST_PASSWORD,TEST_PASSWORD)
+                fields['input']=Widget('/synthetic/encrypted-input')
+                message=f'Wrong recovery passphrase or damaged {version}. Nothing was restored.'
+                with patch.object(gui,'restore',side_effect=gui.RecoveryError(message)) as restore:
+                    gui.RecoveryWindow._run(window,None,fields,False)
+                    restore.assert_called_once()
+                self.assertIn('パスワードが違うか、バックアップが破損しています。復元は行われていません。',window.status.text)
+                self.assertNotIn(message,window.status.text)
+                self.assertNotIn(TEST_PASSWORD,window.status.text)
+                self.assertEqual(fields['password'].text,'')
+                self.assertFalse(fields['button'].sensitive)
+
     def test_whitespace_only_and_oversize_are_rejected(self):
         for password in [' '*16,'x'*1025]:
             self.assertFalse(gui.password_feedback(password,password)[0])

@@ -7,6 +7,34 @@ import automatic_backup as w
 import migration as m
 import recovery_core as r
 
+class WatcherTests(unittest.TestCase):
+ def test_health_publication_retries_without_stopping_snapshot_handling(self):
+  for error in (OSError,r.RecoveryError):
+   with self.subTest(error=error.__name__),tempfile.TemporaryDirectory(prefix='DUMMY-only-watcher-') as directory:
+    root=Path(directory);(root/'outbox').mkdir(mode=0o700)
+    original=w.atomic_json;attempts=[];written=[]
+    def publish_health(path,name,value):
+     self.assertEqual((path,name),(root,'health.json'))
+     status=value['status'];attempts.append(status)
+     if status=='snapshot_blocked' and attempts.count(status)==1:
+      raise error('synthetic health publication failure')
+     original(path,name,value);written.append(status)
+    operations=[subprocess.CompletedProcess([],code) for code in (1,1,0)]
+    with patch.object(w,'load_config',return_value={}),patch.object(w,'source_stamps',return_value=('DUMMY-stamp',)) as polls,patch.object(w.subprocess,'run',side_effect=operations) as snapshot,patch.object(w,'atomic_json',side_effect=publish_health),patch.object(w.time,'sleep',side_effect=[None,None,None,None,KeyboardInterrupt]) as sleep,patch('builtins.print') as output:
+     with self.assertRaises(KeyboardInterrupt):w._watch_loop(root,interval=0.01)
+    self.assertEqual(polls.call_count,5)
+    self.assertEqual(snapshot.call_count,3)
+    self.assertEqual(sleep.call_count,5)
+    self.assertEqual(attempts,['watching','snapshot_blocked','snapshot_blocked','encrypted_snapshot_pending_upload','watching'])
+    self.assertEqual(written,['watching','snapshot_blocked','encrypted_snapshot_pending_upload','watching'])
+    self.assertEqual([call.args[0] for call in output.call_args_list],written)
+    self.assertEqual(json.loads((root/'health.json').read_bytes())['status'],'watching')
+
+ def test_unexpected_health_publication_error_propagates(self):
+  with patch.object(w,'load_config',return_value={}),patch.object(w,'source_stamps',return_value=('DUMMY-stamp',)),patch.object(w,'atomic_json',side_effect=RuntimeError('synthetic unexpected error')),patch.object(w.time,'sleep') as sleep:
+   with self.assertRaisesRegex(RuntimeError,'synthetic unexpected error'):w._watch_loop(Path('/DUMMY-only-watcher'),interval=0.01)
+  sleep.assert_not_called()
+
 class SnapshotTests(unittest.TestCase):
  @classmethod
  def setUpClass(cls):

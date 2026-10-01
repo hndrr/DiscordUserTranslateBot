@@ -1,2 +1,3 @@
 # GTK 3 / PyGObject are OS dependencies; see README.md.
-cryptography>=43
+# Update this pin deliberately and rerun the complete recovery suite.
+cryptography==50.0.2
