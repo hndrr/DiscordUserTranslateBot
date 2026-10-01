@@ -85,7 +85,7 @@ CODEX_MAX_CONCURRENCY=2
 - 例: `CODEX_HOME=/absolute/path/to/dedicated-discord-codex-home codex login`。認証はサービス実行ユーザーで行い、サービスにも同じ絶対パスを設定します
 - 通常のコーディング用 Codex home は使わないでください。保存済みの指示がモデルに送られる可能性があります。`AGENTS.md`、`AGENTS.override.md`、`memories` / `memories_v2` がある home は拒否します。skill は内容を読まずに `SKILL.md` のパスを列挙し、Codex プロセスの起動時に明示的に無効化します。symlink は拒否します。skill の自動参照を避けるため、入力は JSON 文字列として渡し、ドル記号をエスケープします
 - 別案として `.env` の `CODEX_API_KEY`（または環境変数 `DISCORD_CODEX_API_KEY`）を秘密情報として設定すると、Codex プロセスの起動時に空の一時 CODEX_HOME を用意します。この場合 `CODEX_HOME` の指定や保存済みログインは不要です。API の利用料金は契約に従って発生します
-- CLI は認証情報を通常の仕組みで参照します。Bot 本体は認証ファイルを読み出したりコピーしたりしません。別途、運用者が明示的に使う[復旧用ヘルパー](tools/recovery/README.md)は、選択された専用ファイルを内部で読み、暗号化バックアップを作成します
+- CLI は認証情報を通常の仕組みで参照します。Bot 本体は認証ファイルを読み出したりコピーしたりしません。別途、運用者が明示的に使う[Codex CLI 向けの復旧用ヘルパー](tools/recovery/README.md)は、選択された専用ファイルを内部で読み、暗号化バックアップを作成します
 - `CODEX_MODEL` 未指定時は軽量な `gpt-6-luna`、`CODEX_REASONING_EFFORT` 未指定時は `low` を明示します。利用可能なモデルはアカウントによって異なります。非対応なら利用可能なモデルを明示してください。高価なモデルへの自動フォールバックや、有料の fast/priority モードは有効化しません。ユーザーの `config.toml` のモデル設定には依存しません
 - 推論を使わない翻訳には `CODEX_REASONING_EFFORT=none` を明示できます。検証した Luna の実 API 応答では reasoning token が 0 でした。CLI の表示候補に `none` がなくても API で受理される場合があります。処理時間にはネットワークや生成時間も含まれるため、必ず速くなるという保証ではありません
 
@@ -206,7 +206,7 @@ Cursor / Codex のどちらを使う場合も、選択メッセージ・作者�
 
 `.env`、ログ、認証情報を Git に追加しないでください。漏えい時は該当サービスで無効化・再発行してください。Bot token は Discord Application のものだけを使用してください。
 
-任意の[暗号化バックアップ・復元](tools/recovery/README.md)と[自動バックアップ運用](tools/recovery/AUTOMATIC-BACKUP.md)も用意しています。復旧用パスワードは本人が伏せ字フォームに入力し、安全に控えてください。Library 保存には別途承認された外部処理が必要で、ホストの継続稼働や停止中の変更保全は保証しません。
+**Codex CLI の専用ログインを使う構成向け**に、[暗号化バックアップ・復元](tools/recovery/README.md)と[Codex 認証更新の自動バックアップ運用](tools/recovery/AUTOMATIC-BACKUP.md)を用意しています。Discord 共通の `.env` と Bot 専用 Codex home の `auth.json` が対象で、Cursor の認証更新・復旧手順は含みません。運用者、または依頼を受けた Codex / dot が手順に沿って準備・確認し、復旧用パスワードは本人が伏せ字フォームに入力します。Library 保存には対応機能を利用できる承認済みの外部処理が別途必要で、ホストの継続稼働や停止中の変更保全は保証しません。
 
 ## ライセンス
 
