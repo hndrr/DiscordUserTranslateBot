@@ -16,7 +16,7 @@ async function waitFor(check: () => Promise<boolean> | boolean, timeout = 5000) 
   }
 }
 
-async function startSupervisor(t: TestContext, mode: 'graceful' | 'stubborn' | 'exit') {
+async function startSupervisor(t: TestContext, mode: 'graceful' | 'stubborn' | 'exit' | 'preflight-failure') {
   const directory = await mkdtemp(path.join(tmpdir(), 'supervisor-test-'));
   const bin = path.join(directory, 'bin');
   await mkdir(bin);
@@ -25,6 +25,10 @@ async function startSupervisor(t: TestContext, mode: 'graceful' | 'stubborn' | '
   await copyFile(new URL('../run-forever.sh', import.meta.url), path.join(directory, 'run-forever.sh'));
   await writeFile(path.join(bin, 'node'), `#!${process.execPath}
 const fs = require('node:fs');
+if (process.argv.includes('src/preflight.ts')) {
+  fs.appendFileSync('events', 'preflight\\n');
+  process.exit(process.env.BOT_TEST_MODE === 'preflight-failure' ? 1 : 0);
+}
 process.on('SIGTERM', () => {
   fs.appendFileSync('events', 'term\\n');
   if (process.env.BOT_TEST_MODE === 'graceful') process.exit(0);
@@ -33,12 +37,14 @@ fs.appendFileSync('events', 'start\\n');
 fs.writeFileSync('child.pid', String(process.pid));
 if (process.env.BOT_TEST_MODE !== 'exit') setInterval(() => {}, 1000);
 `, { mode: 0o700 });
+  await writeFile(path.join(bin, 'npm'), '#!/bin/sh\necho deploy >> events\n', { mode: 0o700 });
   const supervisor = spawn('bash', ['run-forever.sh'], {
     cwd: directory,
     env: {
       PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`,
       DISCORD_TOKEN: 'fake-supervisor-test-token',
       BOT_TEST_MODE: mode,
+      DEPLOY_COMMANDS: mode === 'preflight-failure' ? '1' : '0',
     },
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -61,7 +67,7 @@ if (process.env.BOT_TEST_MODE !== 'exit') setInterval(() => {}, 1000);
     await rm(directory, { recursive: true, force: true });
   });
   let childPid = 0;
-  await waitFor(async () => {
+  if (mode !== 'preflight-failure') await waitFor(async () => {
     try {
       childPid = Number(await readFile(path.join(directory, 'child.pid'), 'utf8'));
       return childPid > 0;
@@ -87,7 +93,7 @@ test('supervisor forwards SIGTERM and releases its lock after graceful shutdown'
   const fixture = await startSupervisor(t, 'graceful');
   fixture.supervisor.kill('SIGTERM');
   assert.deepEqual(await fixture.exited, { code: 0, signal: null });
-  assert.equal(await fixture.events(), 'start\nterm\n');
+  assert.equal(await fixture.events(), 'preflight\nstart\nterm\n');
   assert.doesNotMatch(fixture.output(), /forcing shutdown|Restarting/);
   assert.throws(() => process.kill(fixture.childPid, 0), { code: 'ESRCH' });
   fixture.assertLockReleased();
@@ -104,7 +110,7 @@ test('supervisor bounds shutdown when the child ignores SIGTERM, even with repea
   assert.deepEqual(await fixture.exited, { code: 0, signal: null });
   const elapsed = Date.now() - started;
   assert.ok(elapsed >= 14000 && elapsed < 22000, `unexpected shutdown duration: ${elapsed}ms`);
-  assert.equal(await fixture.events(), 'start\nterm\n');
+  assert.equal(await fixture.events(), 'preflight\nstart\nterm\n');
   assert.match(fixture.output(), /forcing shutdown/);
   assert.doesNotMatch(fixture.output(), /Restarting/);
   assert.throws(() => process.kill(fixture.childPid, 0), { code: 'ESRCH' });
@@ -118,7 +124,17 @@ test('supervisor stops during restart backoff without launching another child', 
   await waitFor(() => fixture.output().includes('Restarting in 5 seconds'));
   fixture.supervisor.kill('SIGTERM');
   assert.deepEqual(await fixture.exited, { code: 0, signal: null });
-  assert.equal(await fixture.events(), 'start\n');
+  assert.equal(await fixture.events(), 'preflight\nstart\n');
   assert.doesNotMatch(fixture.output(), /forcing shutdown/);
+  fixture.assertLockReleased();
+});
+
+test('failed preflight exits once without starting the bot and releases its lock', {
+  skip: !linux, timeout: 5000,
+}, async t => {
+  const fixture = await startSupervisor(t, 'preflight-failure');
+  assert.deepEqual(await fixture.exited, { code: 1, signal: null });
+  assert.equal(await fixture.events(), 'preflight\n');
+  assert.doesNotMatch(fixture.output(), /Starting bot supervisor|Restarting/);
   fixture.assertLockReleased();
 });
